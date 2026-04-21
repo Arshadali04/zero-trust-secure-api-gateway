@@ -1,0 +1,94 @@
+# ============================================================================
+# ZERO TRUST SECURE API GATEWAY - REQUIREMENTS (CORRECTED)
+# Updated: April 2026
+# Python: 3.10+
+# ============================================================================
+
+# --- WEB FRAMEWORK & SERVER ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+pydantic==2.9.0
+pydantic-settings==2.3.0
+python-multipart==0.0.9
+httptools==0.6.2
+
+# --- DATABASE & ORM ---
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+SQLAlchemy==2.0.36
+alembic==1.14.0
+
+# --- AUTHENTICATION & SECURITY ---
+PyJWT==2.10.0
+python-jose[cryptography]==3.3.0
+cryptography==43.0.0
+passlib[bcrypt]==1.7.4
+Authlib==1.4.0
+pyOpenSSL==24.2.1
+certifi==2024.12.14
+
+# --- CACHING & RATE LIMITING ---
+redis==5.2.0
+slowapi==0.1.9
+
+# --- ATTACK DETECTION ---
+sqlparse==0.5.1
+PyYAML==6.0.2
+
+# --- GEOLOCATION (Replacement for python-maxminddb) ---
+geoip2==4.7.0                    # Official MaxMind Python library
+requests==2.32.3
+
+# --- MACHINE LEARNING & DATA PROCESSING ---
+scikit-learn==1.5.2
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.14.1
+joblib==1.4.2
+
+# --- LOGGING & MONITORING ---
+python-json-logger==2.0.7
+prometheus-client==0.21.0
+loguru==0.7.3
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-prometheus==0.48b0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-sqlalchemy==0.48b0
+opentelemetry-instrumentation-redis==0.48b0
+
+# --- TASK QUEUE & ASYNC ---
+celery==5.4.0
+kombu==5.4.2
+flower==2.0.1
+
+# --- TESTING ---
+pytest==8.2.2
+pytest-asyncio==0.24.0
+httpx==0.27.0
+pytest-cov==5.0.0
+pytest-mock==3.14.0
+
+# --- CODE QUALITY & LINTING ---
+black==24.4.2
+flake8==7.1.1
+mypy==1.11.0
+isort==5.13.2
+pylint==3.2.6
+
+# --- UTILITIES ---
+python-dotenv==1.0.1
+aiohttp==3.10.0
+email-validator==2.2.0
+python-ulid==2.3.0
+
+# --- ELASTICSEARCH ---
+elasticsearch==8.15.0
+
+# --- PERFORMANCE OPTIMIZATION ---
+orjson==3.10.7
+ujson==5.10.0
+
+# --- OPTIONAL: VISUALIZATION ---
+plotly==5.24.0
+matplotlib==3.9.2

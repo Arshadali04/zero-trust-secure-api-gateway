@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero Trust Secure API Gateway</title>
+    <meta name="description"
+        content="Zero Trust Secure API Gateway with JWT Authentication, RBAC, Rate Limiting, and Attack Detection">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <!-- ═══════════════════════════════════════════════════════
+     LOGIN / REGISTER PAGE
+     ═══════════════════════════════════════════════════════ -->
+    <div class="login-container" id="login-container">
+
+        <!-- Login View -->
+        <div id="login-view">
+            <div class="login-card">
+                <div class="logo">
+                    <div class="icon">🛡️</div>
+                    <h2>Zero Trust Gateway</h2>
+                    <p>Secure API Authentication</p>
+                </div>
+
+                <div class="alert" id="login-alert"></div>
+
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Username</label>
+                        <input type="text" id="login-username" placeholder="Enter username" autocomplete="username"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Enter password"
+                            autocomplete="current-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary login-btn">Sign In</button>
+                </form>
+
+                <div class="login-footer">
+                    Don't have an account? <a id="login-toggle">Register</a>
+                </div>
+
+                <div
+                    style="margin-top: 20px; padding: 12px; background: var(--bg-input); border-radius: 8px; font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+                    <strong>Demo Accounts:</strong><br>
+                    Admin → admin / admin123<br>
+                    User → user1 / user123
+                </div>
+            </div>
+        </div>
+
+        <!-- Register View -->
+        <div id="register-view" style="display: none;">
+            <div class="login-card">
+                <div class="logo">
+                    <div class="icon">🔐</div>
+                    <h2>Create Account</h2>
+                    <p>Register for API access</p>
+                </div>
+
+                <div class="alert" id="register-alert"></div>
+
+                <form id="register-form">
+                    <div class="form-group">
+                        <label for="reg-username">Username</label>
+                        <input type="text" id="reg-username" placeholder="Choose a username" minlength="3" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Password</label>
+                        <input type="password" id="reg-password" placeholder="Choose a password" minlength="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-role">Role</label>
+                        <select id="reg-role">
+                            <option value="user">User</option>
+                            <option value="moderator">Moderator</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary login-btn">Create Account</button>
+                </form>
+
+                <div class="login-footer">
+                    Already have an account? <a id="register-toggle">Sign In</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+     DASHBOARD (shown after login)
+     ═══════════════════════════════════════════════════════ -->
+    <div class="app-container" id="app-container">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-logo">
+                <div class="shield-icon">🛡️</div>
+                <div>
+                    <h1>Zero Trust Gateway</h1>
+                    <span>v0.1.0 — Phase 1</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="user-badge" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    <div>
+                        <span>👤</span>
+                        <span id="user-info">—</span>
+                        <span class="role-tag" id="user-role">—</span>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                        title="Copy this token for validation">
+                        Token: <span id="user-token"
+                            style="user-select: all; font-family: monospace; color: var(--text-primary);">—</span>
+                    </div>
+                </div>
+                <button class="btn btn-danger" id="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <!-- Dashboard Content -->
+        <main class="dashboard">
+
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="stat-card blue">
+                    <div class="stat-header">
+                        <span class="stat-label">Total Requests</span>
+                        <div class="stat-icon">📊</div>
+                    </div>
+                    <div class="stat-value" id="stat-total">0</div>
+                </div>
+                <div class="stat-card red">
+                    <div class="stat-header">
+                        <span class="stat-label">Blocked</span>
+                        <div class="stat-icon">🚫</div>
+                    </div>
+                    <div class="stat-value" id="stat-blocked">0</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-header">
+                        <span class="stat-label">Active Users</span>
+                        <div class="stat-icon">👥</div>
+                    </div>
+                    <div class="stat-value" id="stat-users">0</div>
+                </div>
+                <div class="stat-card yellow">
+                    <div class="stat-header">
+                        <span class="stat-label">Uptime</span>
+                        <div class="stat-icon">⏱️</div>
+                    </div>
+                    <div class="stat-value" id="stat-uptime">0m</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="overview">Overview</button>
+                <button class="tab-btn" data-tab="api">API Tester</button>
+                <button class="tab-btn" data-tab="logs">Request Logs</button>
+            </div>
+
+            <!-- Tab: Overview -->
+            <div class="tab-content active" id="tab-overview">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>🔒 Zero Trust Security Flow</h3>
+                    </div>
+                    <div class="panel-body" style="font-size: 14px; line-height: 1.8; color: var(--text-secondary);">
+                        <p><strong>1.</strong> User authenticates via <code>/api/login</code> with credentials</p>
+                        <p><strong>2.</strong> Server validates credentials and issues a <strong>JWT token</strong></p>
+                        <p><strong>3.</strong> Token is stored in browser and sent with every API request</p>
+                        <p><strong>4.</strong> Gateway <strong>verifies JWT</strong> on each request (reject if
+                            invalid/expired)</p>
+                        <p><strong>5.</strong> <strong>RBAC check</strong>: role-based permissions enforced per endpoint
+                        </p>
+                        <p><strong>6.</strong> <strong>Rate limiting</strong> applied (10 req/min per IP)</p>
+                        <p><strong>7.</strong> All requests <strong>logged</strong> for monitoring and audit</p>
+                        <p><strong>8.</strong> Response sent to user</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: API Tester -->
+            <div class="tab-content" id="tab-api">
+                <div class="api-tester">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>Endpoints</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="endpoint-list">
+                                <div class="endpoint-item" data-method="GET" data-path="/api/data">
+                                    <span class="method-badge GET">GET</span>
+                                    <span class="endpoint-path">/api/data</span>
+                                </div>
+                                <div class="endpoint-item" data-method="GET" data-path="/api/verify">
+                                    <span class="method-badge GET">GET</span>
+                                    <span class="endpoint-path">/api/verify</span>
+                                </div>
+                                <div class="endpoint-item" data-method="GET" data-path="/api/admin/users">
+                                    <span class="method-badge GET">GET</span>
+                                    <span class="endpoint-path">/api/admin/users</span>
+                                </div>
+                                <div class="endpoint-item" data-method="GET" data-path="/api/gateway/stats">
+                                    <span class="method-badge GET">GET</span>
+                                    <span class="endpoint-path">/api/gateway/stats</span>
+                                </div>
+                                <div class="endpoint-item" data-method="GET" data-path="/api/gateway/logs">
+                                    <span class="method-badge GET">GET</span>
+                                    <span class="endpoint-path">/api/gateway/logs</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>Response</h3>
+                        </div>
+                        <div class="response-viewer">
+                            <div class="response-header">
+                                <span>Status: <span class="status-badge" id="response-status">—</span></span>
+                                <span id="response-time" style="color: var(--text-muted); font-size: 12px;"></span>
+                            </div>
+                            <pre class="response-body" id="response-body">Click an endpoint to test</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Request Logs -->
+            <div class="tab-content" id="tab-logs">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Request Logs (Admin Only)</h3>
+                        <button class="btn btn-ghost" onclick="document.querySelector('[data-tab=logs]').click()">↻
+                            Refresh</button>
+                    </div>
+                    <div class="panel-body" style="overflow-x: auto;">
+                        <table class="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Method</th>
+                                    <th>Path</th>
+                                    <th>User</th>
+                                    <th>Status</th>
+                                    <th>Latency</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-body">
+                                <tr>
+                                    <td colspan="6" style="text-align:center;color:var(--text-muted)">Switch to this tab
+                                        to load logs</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

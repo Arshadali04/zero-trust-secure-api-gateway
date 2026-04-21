@@ -1,0 +1,121 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Zero Trust Gateway</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <span class="logo-icon">🔐</span>
+                Zero Trust Gateway
+            </div>
+            <ul class="nav-menu">
+                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li><a href="profile.html" class="nav-link active">Profile</a></li>
+                <li class="nav-user">
+                    <span id="userName">User</span>
+                    <button class="nav-link btn-logout" onclick="Auth.logout()">Logout</button>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>Your Profile</h1>
+            <p>Manage your account information</p>
+        </header>
+
+        <div class="profile-grid">
+            <div class="profile-section">
+                <h2>Personal Information</h2>
+                <div class="profile-avatar">
+                    <div class="avatar">👤</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-item">
+                        <label>Full Name</label>
+                        <p id="profileFullName">Loading...</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Username</label>
+                        <p id="profileUsername">Loading...</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Email</label>
+                        <p id="profileEmail">Loading...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2>Account Details</h2>
+                <div class="info-box">
+                    <div class="info-item">
+                        <label>User ID</label>
+                        <p id="profileID">Loading...</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Role</label>
+                        <p id="profileRole">Loading...</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Account Created</label>
+                        <p id="profileCreated">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-actions">
+            <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">Back to Dashboard</button>
+            <button class="btn btn-danger" onclick="Auth.logout()">Logout</button>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        window.addEventListener('load', async () => {
+            if (!Auth.isAuthenticated()) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // fetch fresh user from backend and store it
+            const user = await Auth.syncCurrentUser();
+
+            if (!user) {
+                // fallback to whatever is in localStorage
+                const cached = Auth.getCurrentUser();
+                if (!cached) return;
+                render(cached);
+                return;
+            }
+
+            render(user);
+
+            function render(u) {
+                document.getElementById('profileFullName').textContent = u.full_name || 'Not set';
+                document.getElementById('profileUsername').textContent = u.username || 'Not set';
+                document.getElementById('profileEmail').textContent = u.email || 'Not set';
+                document.getElementById('profileID').textContent = u.id || '—';
+                document.getElementById('profileRole').textContent = u.role || 'user';
+                document.getElementById('profileCreated').textContent =
+                    u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
+                document.getElementById('userName').textContent = u.username || 'User';
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,123 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Zero Trust Gateway</title>
+    <link rel="stylesheet" href="css/auth.css" />
+</head>
+
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-box">
+            <div class="auth-header">
+                <div class="logo">🔐</div>
+                <h1>Login</h1>
+                <p>Welcome back</p>
+            </div>
+
+            <form id="loginForm" class="auth-form" action="javascript:void(0)" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" placeholder="your@email.com" required />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="••••••••" required />
+                </div>
+
+                <!-- IMPORTANT: id added -->
+                <button id="loginBtn" type="button" class="btn btn-primary btn-block"
+                    style="pointer-events:auto; position:relative; z-index:9999;">
+                    Login
+                </button>
+            </form>
+
+            <div class="oauth-divider"><span>Or continue with</span></div>
+
+            <div class="oauth-buttons">
+                <a href="http://127.0.0.1:8000/auth/oauth/login/google" class="oauth-btn google">
+                    <span class="oauth-icon">🔍</span> Google
+                </a>
+                <a href="http://127.0.0.1:8000/auth/oauth/login/github" class="oauth-btn github">
+                    <span class="oauth-icon">🐙</span> GitHub
+                </a>
+            </div>
+
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="register.html">Sign up here</a></p>
+            </div>
+
+            <!-- Visible debug line -->
+            <p id="debugLine" style="font-size:12px;color:#888;margin-top:12px;"></p>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        function setDebug(msg) {
+            const el = document.getElementById("debugLine");
+            if (el) el.textContent = msg;
+            console.log(msg);
+        }
+
+        window.addEventListener("load", () => {
+            setDebug("login.html loaded. API=" + typeof API + " UI=" + typeof UI + " Auth=" + typeof Auth);
+
+            Auth.handleOAuthCallback().then((handled) => {
+                if (handled) {
+                    setDebug("OAuth callback handled. Redirecting to dashboard...");
+                }
+            });
+
+            // Log ANY click anywhere (proves whether clicks are being received)
+            document.addEventListener("click", (e) => {
+                const id = e.target && e.target.id ? e.target.id : "(no id)";
+                console.log("CLICK:", e.target?.tagName, "id=", id, "class=", e.target?.className);
+            }, true);
+
+            // Event delegation: catch click even if element changes
+            document.addEventListener("click", async (e) => {
+                const btn = e.target.closest ? e.target.closest("#loginBtn") : null;
+                if (!btn) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const email = document.getElementById("email").value;
+                const password = document.getElementById("password").value;
+
+                setDebug("Login clicked. Sending request to /auth/login ...");
+
+                try {
+                    const result = await Auth.login(email, password);
+                    if (result) {
+                        setDebug("Auth.login succeeded. Redirecting to dashboard...");
+                    } else {
+                        setDebug("Auth.login did not complete. Check console/network for the exact error.");
+                    }
+                } catch (err) {
+                    console.error("Auth.login threw:", err);
+                    setDebug("Auth.login threw error (see console)");
+                }
+            }, true);
+
+            // Enter key triggers login
+            document.getElementById("loginForm").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    document.getElementById("loginBtn").click();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
