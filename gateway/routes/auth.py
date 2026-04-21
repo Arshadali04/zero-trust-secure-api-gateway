@@ -18,8 +18,31 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     # email exists?
     result = await db.execute(select(User).where(User.email == user_data.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    existing_user = result.scalar_one_or_none()
+    if existing_user:
+        if existing_user.hashed_password is not None:
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+        result = await db.execute(
+            select(User).where(
+                User.username == user_data.username,
+                User.email != user_data.email,
+            )
+        )
+        if result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username already taken")
+
+        # Allow completing an OAuth-created account with a local password so the
+        # same user can sign in with either method.
+        existing_user.username = user_data.username
+        existing_user.full_name = user_data.full_name
+        existing_user.hashed_password = SecurityManager.hash_password(user_data.password)
+        existing_user.is_active = True
+        existing_user.last_login = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(existing_user)
+        return existing_user
 
     # username exists?
     result = await db.execute(select(User).where(User.username == user_data.username))
@@ -71,4 +94,9 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         expires_delta=timedelta(minutes=30),
     )
 
-    return TokenResponse(access_token=access_token, token_type="bearer", expires_in=1800)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=1800,
+        user=user,
+    )

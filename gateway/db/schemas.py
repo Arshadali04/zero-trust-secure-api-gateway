@@ -28,6 +28,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+    user: Optional[UserResponse] = None
 
 class AuditLogResponse(BaseModel):
     id: int

@@ -1,111 +1,96 @@
-﻿function extractErrorMessage(error, fallback = "Request failed") {
-  const detail = error?.data?.detail;
+/**
+ * auth.js — Unified authentication module.
+ *
+ * Single login flow for BOTH email/password AND OAuth:
+ *   1. Obtain a JWT token (API call or URL param).
+ *   2. Optionally fetch /auth/me for a full user object.
+ *   3. Call finishLogin(token, user) → stores session → redirects to dashboard.
+ *
+ * Rules enforced here:
+ *  - NEVER wipe the token inside this module except in logout() / isAuthenticated() expiry check.
+ *  - NEVER navigate inside a catch block — show an error and stay on the page.
+ *  - Every public method that can fail catches internally and returns null/false (no re-throw).
+ */
 
-  // FastAPI/Pydantic validation errors: { detail: [ {loc,msg,type}, ... ] }
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+function _extractErrorMessage(error, fallback) {
+  fallback = fallback || "Request failed";
+
+  const detail = error && error.data && error.data.detail;
+
+  // FastAPI/Pydantic validation: { detail: [ {loc, msg, type}, ... ] }
   if (Array.isArray(detail)) {
     return detail
-      .map((e) => {
+      .map(function (e) {
         const loc = Array.isArray(e.loc) ? e.loc.slice(1).join(".") : "";
         const msg = e.msg || "Invalid value";
-        return loc ? `${loc}: ${msg}` : msg;
+        return loc ? loc + ": " + msg : msg;
       })
       .join(", ");
   }
 
-  // Normal FastAPI errors: { detail: "..." }
   if (typeof detail === "string") return detail;
-
-  if (typeof error?.data === "string") return error.data;
-  if (typeof error?.message === "string") return error.message;
+  if (error && typeof error.data === "string") return error.data;
+  if (error && typeof error.message === "string") return error.message;
 
   return fallback;
 }
 
+function _storeSession(token, user) {
+  localStorage.setItem("token", token);
+  if (user && typeof user === "object") {
+    localStorage.setItem("user", JSON.stringify(user));
+  }
+}
+
+function _clearSession() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+}
+
+// ---------------------------------------------------------------------------
+// Public Auth object
+// ---------------------------------------------------------------------------
+
 const Auth = {
-  async register(email, username, password, fullName) {
-    UI.showLoading("Creating account...");
 
-    try {
-      await API.register(email, username, password, fullName);
-      UI.hideLoading();
-      UI.showSuccess("Account created! Redirecting to login...");
-      setTimeout(() => (window.location.href = "login.html"), 1200);
-    } catch (error) {
-      UI.hideLoading();
-      UI.showError(extractErrorMessage(error, "Registration failed"));
-      // IMPORTANT: do not re-throw (prevents page “blink”)
-      return null;
-    }
-  },
+  // ── Token / session helpers ────────────────────────────────────────────────
 
-  async login(email, password) {
-    UI.showLoading("Logging in...");
-
-    try {
-      const response = await API.login(email, password);
-
-      // Store the token first so protected pages can proceed immediately.
-      localStorage.setItem("token", response.access_token);
-
-      // Try to warm the user cache, but do not treat a temporary /auth/me miss
-      // as a failed login. That was causing the redirect loop back to login.
-      await this.syncCurrentUser();
-
-      UI.hideLoading();
-      UI.showSuccess("Login successful!");
-
-      setTimeout(() => {
-        window.location.href = "dashboard.html";
-      }, 500);
-
-      return response;
-
-    } catch (error) {
-      UI.hideLoading();
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      UI.showError(extractErrorMessage(error, "Login failed or session invalid"));
-      return null;
-    }
-  },
-
-  logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "login.html";
+  getToken() {
+    return localStorage.getItem("token");
   },
 
   isAuthenticated() {
-    const token = localStorage.getItem("token");
-
+    const token = this.getToken();
     if (!token) return false;
 
     try {
-      const payloadPart = token.split(".")[1];
-      if (!payloadPart) return false;
+      const parts = token.split(".");
+      if (parts.length !== 3) return false;
 
-      const base64 = payloadPart
-        .replace(/-/g, "+")
-        .replace(/_/g, "/");
-      const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-
-      const payload = JSON.parse(atob(paddedBase64));
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+      const payload = JSON.parse(atob(padded));
 
       if (payload.exp && Date.now() >= payload.exp * 1000) {
+        _clearSession();   // token is expired — clean up proactively
         return false;
       }
 
       return true;
     } catch (e) {
-      console.error("JWT decode failed:", e);
+      console.warn("[Auth] JWT decode failed:", e);
       return false;
     }
   },
 
   getCurrentUser() {
-    const raw = localStorage.getItem("user");
-    if (!raw) return null;
     try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return null;
       const obj = JSON.parse(raw);
       return obj && typeof obj === "object" ? obj : null;
     } catch {
@@ -113,67 +98,191 @@ const Auth = {
     }
   },
 
-  setCurrentUser(userObj) {
-    localStorage.setItem("user", JSON.stringify(userObj));
+  // ── Core shared finish step (used by BOTH flows) ───────────────────────────
+
+  /**
+   * Store session and navigate to dashboard.
+   * This is the ONLY place that does window.location navigation after login.
+   */
+  finishLogin(token, user) {
+    if (!token) {
+      UI.showError("Login failed: server did not return a token.");
+      return;
+    }
+
+    _storeSession(token, user || null);
+    UI.hideLoading();
+    UI.showSuccess("Login successful! Redirecting…");
+
+    setTimeout(function () {
+      window.location.replace("dashboard.html");
+    }, 600);
   },
 
-  getToken() {
-    return localStorage.getItem("token");
+  // ── Email / password login ─────────────────────────────────────────────────
+
+  /**
+   * Called from the login form submit handler.
+   * Returns true on success, false on failure (never throws).
+   */
+  async login(email, password) {
+    UI.showLoading("Logging in…");
+
+    try {
+      const response = await API.login(email, password);
+      const token = response && response.access_token;
+      const user  = response && response.user;
+
+      if (!token) {
+        throw { message: "Server did not return an access token." };
+      }
+
+      this.finishLogin(token, user);
+      return true;
+
+    } catch (error) {
+      UI.hideLoading();
+      const msg = _extractErrorMessage(error, "Login failed. Check your email and password.");
+      UI.showError(msg);
+      console.error("[Auth] email/password login error:", error);
+      return false;
+    }
   },
 
+  // ── OAuth callback ─────────────────────────────────────────────────────────
+
+  /**
+   * Call on login.html load.
+   * Detects ?token=... in the URL (set by the backend OAuth callback).
+   * Returns true if an OAuth redirect was processed, false if this is a plain login load.
+   * Never throws.
+   */
+  async handleOAuthCallback() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const token  = params.get("token");
+      const email  = params.get("user");
+      const error  = params.get("error");
+      const msg    = params.get("msg");
+
+      // Nothing in the URL — normal login page load, do nothing.
+      if (!token && !error) return false;
+
+      // Always clean the URL immediately so a page refresh doesn't re-trigger this.
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      if (error) {
+        UI.showError(msg || "OAuth login failed. Please try again.");
+        return false;
+      }
+
+      // Build a minimal user from the email query param as a fast fallback.
+      let user = null;
+      if (email) {
+        const username = email.split("@")[0] || "user";
+        user = { email: email, username: username, full_name: username };
+      }
+
+      // Try to get the full user object from /auth/me.
+      // We store the token temporarily for API.request to pick up.
+      localStorage.setItem("token", token);
+      try {
+        const fresh = await API.request("GET", "/auth/me");
+        if (fresh && typeof fresh === "object") user = fresh;
+      } catch (e) {
+        // /auth/me failed — not fatal, we'll use the email-derived fallback.
+        console.warn("[Auth] /auth/me failed during OAuth callback, using cached user:", e);
+        // Remove the temp token so finishLogin -> _storeSession sets it cleanly.
+        localStorage.removeItem("token");
+      }
+
+      // finishLogin will re-persist the token (and user) and navigate.
+      this.finishLogin(token, user);
+      return true;
+
+    } catch (e) {
+      console.error("[Auth] handleOAuthCallback unexpected error:", e);
+      UI.showError("Unexpected error during OAuth login.");
+      return false;
+    }
+  },
+
+  // ── Registration ───────────────────────────────────────────────────────────
+
+  async register(email, username, password, fullName) {
+    UI.showLoading("Creating account…");
+
+    try {
+      await API.register(email, username, password, fullName);
+      UI.hideLoading();
+      UI.showSuccess("Account created! Redirecting to login…");
+      setTimeout(function () {
+        window.location.replace("login.html");
+      }, 1200);
+      return true;
+    } catch (error) {
+      UI.hideLoading();
+      UI.showError(_extractErrorMessage(error, "Registration failed."));
+      console.error("[Auth] register error:", error);
+      return false;
+    }
+  },
+
+  // ── Sync user from backend (used by profile.html) ─────────────────────────
+
+  /**
+   * Fetches the current user from /auth/me and caches in localStorage.
+   * Returns the user object on success, null on failure.
+   */
   async syncCurrentUser() {
     const token = this.getToken();
     if (!token) {
-      localStorage.removeItem("user");
+      _clearSession();
       return null;
     }
-
     try {
       const me = await API.request("GET", "/auth/me");
-      this.setCurrentUser(me);
-      return me;
+      if (me && typeof me === "object") {
+        localStorage.setItem("user", JSON.stringify(me));
+        return me;
+      }
+      return null;
     } catch (e) {
-      console.error("syncCurrentUser failed:", e);
+      console.warn("[Auth] syncCurrentUser failed:", e);
       return null;
     }
   },
 
-  async handleOAuthCallback() {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    const user = params.get("user");
-    const error = params.get("error");
-    const message = params.get("msg");
+  // ── Logout ─────────────────────────────────────────────────────────────────
 
-    if (error) {
-      UI.showError(message || "OAuth login failed");
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return false;
+  logout() {
+    _clearSession();
+    window.location.replace("login.html");
+  },
+
+  // ── Dashboard guard ────────────────────────────────────────────────────────
+
+  /**
+   * Call at the top of dashboard.html.
+   * Redirects to login if not authenticated, otherwise returns the user object.
+   */
+  async requireAuth() {
+    if (!this.isAuthenticated()) {
+      window.location.replace("login.html");
+      return null;
     }
 
-    if (!token) {
-      return false;
+    // Try to refresh user data; fall back to localStorage cache gracefully.
+    try {
+      const fresh = await API.request("GET", "/auth/me");
+      if (fresh && typeof fresh === "object") {
+        localStorage.setItem("user", JSON.stringify(fresh));
+        return fresh;
+      }
+    } catch (e) {
+      console.warn("[Auth] /auth/me refresh failed on dashboard, using cached user:", e);
     }
 
-    localStorage.setItem("token", token);
-
-    if (user) {
-      const username = user.split("@")[0] || "user";
-      this.setCurrentUser({
-        email: user,
-        username,
-        full_name: username,
-      });
-    }
-
-    await this.syncCurrentUser();
-    UI.showSuccess("Login successful!");
-    window.history.replaceState({}, document.title, window.location.pathname);
-
-    setTimeout(() => {
-      window.location.href = "dashboard.html";
-    }, 500);
-
-    return true;
+    return this.getCurrentUser();
   },
 };

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -17,20 +17,24 @@
                 <p>Welcome back</p>
             </div>
 
-            <form id="loginForm" class="auth-form" action="javascript:void(0)" onsubmit="return false;">
+            <!--
+                IMPORTANT: no action="" attribute, no onsubmit="" attribute.
+                The submit event is handled entirely by the JS below.
+            -->
+            <form id="loginForm" class="auth-form">
                 <div class="form-group">
                     <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" placeholder="your@email.com" required />
+                    <input type="email" id="email" name="email"
+                           placeholder="your@email.com" required autocomplete="email" />
                 </div>
 
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="••••••••" required />
+                    <input type="password" id="password" name="password"
+                           placeholder="••••••••" required autocomplete="current-password" />
                 </div>
 
-                <!-- IMPORTANT: id added -->
-                <button id="loginBtn" type="button" class="btn btn-primary btn-block"
-                    style="pointer-events:auto; position:relative; z-index:9999;">
+                <button id="loginBtn" type="submit" class="btn btn-primary btn-block">
                     Login
                 </button>
             </form>
@@ -49,71 +53,54 @@
             <div class="auth-footer">
                 <p>Don't have an account? <a href="register.html">Sign up here</a></p>
             </div>
-
-            <!-- Visible debug line -->
-            <p id="debugLine" style="font-size:12px;color:#888;margin-top:12px;"></p>
         </div>
     </div>
 
     <div id="notification" class="notification"></div>
 
+    <!-- Load order: API → UI → Auth (each depends on the previous) -->
     <script src="js/api.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
-        function setDebug(msg) {
-            const el = document.getElementById("debugLine");
-            if (el) el.textContent = msg;
-            console.log(msg);
-        }
+        // ── On page load ────────────────────────────────────────────────────────
+        window.addEventListener("load", async function () {
 
-        window.addEventListener("load", () => {
-            setDebug("login.html loaded. API=" + typeof API + " UI=" + typeof UI + " Auth=" + typeof Auth);
+            // 1. Handle OAuth redirect (token in URL query string).
+            //    If this is a plain login page load (no ?token=...) this returns false immediately.
+            const wasOAuth = await Auth.handleOAuthCallback();
+            if (wasOAuth) return; // navigation already triggered inside handleOAuthCallback
 
-            Auth.handleOAuthCallback().then((handled) => {
-                if (handled) {
-                    setDebug("OAuth callback handled. Redirecting to dashboard...");
-                }
-            });
+            // 2. If the user already has a valid token (e.g. navigated back after login),
+            //    send them straight to the dashboard.
+            if (Auth.isAuthenticated()) {
+                window.location.replace("dashboard.html");
+                return;
+            }
 
-            // Log ANY click anywhere (proves whether clicks are being received)
-            document.addEventListener("click", (e) => {
-                const id = e.target && e.target.id ? e.target.id : "(no id)";
-                console.log("CLICK:", e.target?.tagName, "id=", id, "class=", e.target?.className);
-            }, true);
+            // 3. Wire up the email/password form.
+            //    Using the "submit" event on the <form> means:
+            //      - clicking the submit button triggers it
+            //      - pressing Enter inside any input triggers it
+            //      - the browser's built-in required-field validation runs first
+            document.getElementById("loginForm").addEventListener("submit", async function (e) {
+                e.preventDefault(); // stop native form submission (prevents the blink)
 
-            // Event delegation: catch click even if element changes
-            document.addEventListener("click", async (e) => {
-                const btn = e.target.closest ? e.target.closest("#loginBtn") : null;
-                if (!btn) return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                const email = document.getElementById("email").value;
+                const email    = document.getElementById("email").value.trim();
                 const password = document.getElementById("password").value;
 
-                setDebug("Login clicked. Sending request to /auth/login ...");
+                // Disable the button while the request is in flight
+                const btn = document.getElementById("loginBtn");
+                btn.disabled = true;
 
                 try {
-                    const result = await Auth.login(email, password);
-                    if (result) {
-                        setDebug("Auth.login succeeded. Redirecting to dashboard...");
-                    } else {
-                        setDebug("Auth.login did not complete. Check console/network for the exact error.");
-                    }
-                } catch (err) {
-                    console.error("Auth.login threw:", err);
-                    setDebug("Auth.login threw error (see console)");
-                }
-            }, true);
-
-            // Enter key triggers login
-            document.getElementById("loginForm").addEventListener("keydown", (e) => {
-                if (e.key === "Enter") {
-                    e.preventDefault();
-                    document.getElementById("loginBtn").click();
+                    await Auth.login(email, password);
+                    // Auth.login calls finishLogin on success which navigates to dashboard.
+                    // On failure it shows an error toast and returns false — we re-enable the button.
+                } finally {
+                    // Only re-enable if we're still on this page (i.e. login failed)
+                    btn.disabled = false;
                 }
             });
         });

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -79,30 +79,25 @@
 
     <div id="notification" class="notification"></div>
 
+    <!-- Load order: API → UI → Auth -->
     <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/auth.js"></script>
+
     <script>
-        window.addEventListener("load", async () => {
-            if (!Auth.isAuthenticated()) {
-                window.location.href = "login.html";
-                return;
-            }
+        window.addEventListener("load", async function () {
+            // requireAuth() checks isAuthenticated(); if invalid it redirects to login.html
+            const user = await Auth.requireAuth();
+            if (!user) return; // redirecting, nothing else to do
 
-            const fresh = await Auth.syncCurrentUser();
-            const user = fresh || Auth.getCurrentUser();
-
-            if (user) {
-                document.getElementById("userName").textContent = user.username || "User";
-                document.getElementById("userFullName").textContent =
-                    user.full_name || user.username || "User";
-                document.getElementById("userRole").textContent = user.role || "user";
-            }
+            document.getElementById("userName").textContent     = user.username  || "User";
+            document.getElementById("userFullName").textContent = user.full_name || user.username || "User";
+            document.getElementById("userRole").textContent     = user.role      || "user";
 
             try {
                 const health = await API.getHealth();
                 document.getElementById("apiStatus").textContent =
-                    health.status === "healthy" ? "✅ Healthy" : "⚠️ Degraded";
+                    health && health.status === "healthy" ? "✅ Healthy" : "⚠️ Degraded";
             } catch (e) {
                 document.getElementById("apiStatus").textContent = "❌ Offline";
             }

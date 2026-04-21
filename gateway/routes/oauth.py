@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 import logging
 import os
 
@@ -116,7 +116,7 @@ async def upsert_oauth_user(
 @router.get("/callback/google")
 async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
     """Google OAuth callback"""
-    frontend_base = "http://127.0.0.1:5500/frontend/login.html"
+    frontend_base = "http://127.0.0.1:5500/login.html"
 
     try:
         token = await oauth.google.authorize_access_token(request)
@@ -160,7 +160,7 @@ async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/callback/github")
 async def callback_github(request: Request, db: AsyncSession = Depends(get_db)):
     """GitHub OAuth callback"""
-    frontend_base = "http://127.0.0.1:5500/frontend/login.html"
+    frontend_base = "http://127.0.0.1:5500/login.html"
 
     try:
         token = await oauth.github.authorize_access_token(request)
