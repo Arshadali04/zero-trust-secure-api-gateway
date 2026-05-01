@@ -1,50 +1,57 @@
-﻿import pytest
-from fastapi.testclient import TestClient
+"""
+tests/test_auth.py
+-------------------
+Legacy synchronous API tests (kept for backward compatibility).
+These use the synchronous httpx client; the fuller async tests live in
+tests/integration/test_auth_flow.py.
+"""
+
+import pytest
+from httpx import Client, ASGITransport
 from gateway.main import app
 
+
 @pytest.fixture
-def client():
-    """Create test client"""
-    return TestClient(app)
+def sync_client():
+    with Client(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
 
-def test_register_user(client):
-    response = client.post("/auth/register", json={
-        "email": "unique1@example.com",
-        "username": "unique1user",
-        "password": "securepassword123",
-        "full_name": "Test User"
-    })
-    assert response.status_code == 201
-    assert response.json()["username"] == "unique1user"
 
-def test_register_duplicate_email(client):
-    # Register first user
-    client.post("/auth/register", json={
-        "email": "dup@example.com",
-        "username": "dup1",
-        "password": "securepassword123",
-        "full_name": "User One"
+def test_register_user(sync_client):
+    resp = sync_client.post("/auth/register", json={
+        "email": "legacy1@example.com",
+        "username": "legacy1",
+        "password": "Secure@Pass1",
+        "full_name": "Legacy User",
     })
-    
-    # Try to register with same email
-    response = client.post("/auth/register", json={
-        "email": "dup@example.com",
-        "username": "dup2",
-        "password": "securepassword123",
-        "full_name": "User Two"
-    })
-    assert response.status_code == 400
+    assert resp.status_code == 201
+    assert resp.json()["username"] == "legacy1"
 
-def test_login_user(client):
-    # Register user
-    client.post("/auth/register", json={
-        "email": "login2@example.com",
-        "username": "loginuser2",
-        "password": "securepassword123",
-        "full_name": "Login User"
+
+def test_register_duplicate_email(sync_client):
+    payload = {
+        "email": "legacydup@example.com",
+        "username": "legacydup1",
+        "password": "Secure@Pass1",
+        "full_name": "Dup",
+    }
+    sync_client.post("/auth/register", json=payload)
+    resp = sync_client.post("/auth/register", json={**payload, "username": "legacydup2"})
+    assert resp.status_code == 400
+
+
+def test_login_user(sync_client):
+    # Register first
+    sync_client.post("/auth/register", json={
+        "email": "legacylogin@example.com",
+        "username": "legacylogin",
+        "password": "Secure@Pass1",
+        "full_name": "Legacy Login",
     })
-    
-    # Login with query parameters
-    response = client.post("/auth/login?email=login2@example.com&password=securepassword123")
-    assert response.status_code == 200
-    assert "access_token" in response.json()
+    # Login with JSON body (NOT query params — that was the original bug)
+    resp = sync_client.post("/auth/login", json={
+        "email": "legacylogin@example.com",
+        "password": "Secure@Pass1",
+    })
+    assert resp.status_code == 200
+    assert "access_token" in resp.json()

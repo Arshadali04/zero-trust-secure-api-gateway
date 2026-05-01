@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, String, Integer, DateTime, Boolean, Float, Text, Index
+from sqlalchemy import Column, String, Integer, DateTime, Boolean, Float, Text, Index
 from sqlalchemy.sql import func
 from gateway.db.database import Base
 from datetime import datetime
@@ -18,6 +18,8 @@ class User(Base):
     is_active = Column(Boolean, default=True, index=True)
     is_superuser = Column(Boolean, default=False)
     role = Column(String(50), default="user")
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
@@ -38,6 +40,7 @@ class AuditLog(Base):
     resource = Column(String(255), nullable=True)
     method = Column(String(10), nullable=False)
     status_code = Column(Integer, nullable=True)
+    event_type = Column(String(30), nullable=True, index=True)  # successful|unsuccessful|blocked|rate_limited|proxied
     ip_address = Column(String(45), index=True)
     user_agent = Column(String(500), nullable=True)
     details = Column(Text, nullable=True)
@@ -59,3 +62,11 @@ class SecurityEvent(Base):
     risk_score = Column(Float, default=0.0)
     status = Column(String(20), default="detected")
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), index=True, nullable=False)
+    token = Column(String(255), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)

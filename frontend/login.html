@@ -5,7 +5,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login - Zero Trust Gateway</title>
-    <link rel="stylesheet" href="css/auth.css" />
+    <link rel="stylesheet" href="css/auth.css?v=2" />
+    <!--
+        ANTI-BLINK GUARD — runs synchronously before any paint.
+        If the user already has a valid token, redirect instantly.
+        This means the login page is NEVER rendered for logged-in users.
+    -->
+    <script>
+        (function () {
+            var token = localStorage.getItem('token');
+            if (!token) return;
+            // Check if it is an OAuth callback (has ?token= in URL) — let it through
+            if (window.location.search.indexOf('token=') !== -1) return;
+            try {
+                var parts = token.split('.');
+                if (parts.length !== 3) { localStorage.removeItem('token'); return; }
+                var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                var padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, '=');
+                var payload = JSON.parse(atob(padded));
+                if (!payload.exp || Date.now() < payload.exp * 1000) {
+                    window.location.replace('dashboard.html?t=' + Date.now());
+                }
+            } catch (e) { /* ignore decode errors */ }
+        })();
+    </script>
 </head>
 
 <body class="auth-page">
@@ -17,21 +40,26 @@
                 <p>Welcome back</p>
             </div>
 
-            <!--
-                IMPORTANT: no action="" attribute, no onsubmit="" attribute.
-                The submit event is handled entirely by the JS below.
-            -->
-            <form id="loginForm" class="auth-form">
+            <form id="loginForm" class="auth-form" action="javascript:void(0)">
                 <div class="form-group">
                     <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email"
-                           placeholder="your@email.com" required autocomplete="email" />
+                    <input type="email" id="email" name="email" placeholder="your@email.com" required
+                        autocomplete="email" />
                 </div>
 
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password"
-                           placeholder="••••••••" required autocomplete="current-password" />
+                    <div style="position: relative;">
+                        <input type="password" id="password" name="password" placeholder="••••••••" required
+                            autocomplete="current-password" style="width: 100%; padding-right: 40px; box-sizing: border-box;" />
+                        <button type="button" id="togglePassword"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
+                    </div>
+                    <div style="text-align: right; margin-top: 0.5rem;">
+                        <a href="forgot-password.html" style="font-size: 0.85rem; color: var(--primary); text-decoration: none;">Forgot Password?</a>
+                    </div>
                 </div>
 
                 <button id="loginBtn" type="submit" class="btn btn-primary btn-block">
@@ -54,54 +82,124 @@
                 <p>Don't have an account? <a href="register.html">Sign up here</a></p>
             </div>
         </div>
+
+        <!-- MFA Verification Form (Hidden by default) -->
+        <div class="auth-box" id="mfaBox" style="display: none;">
+            <div class="auth-header">
+                <div class="logo">🛡️</div>
+                <h1>Two-Factor Auth</h1>
+                <p>Enter the 6-digit code from your authenticator app</p>
+            </div>
+            <form id="mfaForm" class="auth-form" action="javascript:void(0)">
+                <div class="form-group">
+                    <label for="mfaCode">Authenticator Code</label>
+                    <input type="text" id="mfaCode" name="mfaCode" placeholder="123456" required autocomplete="one-time-code" maxlength="6" style="text-align:center; font-size:1.5rem; letter-spacing:0.2em; font-family:monospace;" />
+                </div>
+                <button id="mfaBtn" type="submit" class="btn btn-primary btn-block">Verify</button>
+            </form>
+            <div class="auth-footer">
+                <p><a href="#" id="cancelMfaBtn">Cancel Login</a></p>
+            </div>
+        </div>
     </div>
 
     <div id="notification" class="notification"></div>
 
-    <!-- Load order: API → UI → Auth (each depends on the previous) -->
-    <script src="js/api.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/auth.js"></script>
+    <script src="js/api.js?v=6"></script>
+    <script src="js/ui.js?v=6"></script>
+    <script src="js/auth.js?v=6"></script>
 
     <script>
-        // ── On page load ────────────────────────────────────────────────────────
         window.addEventListener("load", async function () {
+            // Eye toggle
+            document.getElementById("togglePassword").addEventListener("click", function () {
+                var pwd = document.getElementById("password");
+                if (pwd.type === "password") {
+                    pwd.type = "text";
+                    this.textContent = "🙈";
+                } else {
+                    pwd.type = "password";
+                    this.textContent = "👁️";
+                }
+            });
 
-            // 1. Handle OAuth redirect (token in URL query string).
-            //    If this is a plain login page load (no ?token=...) this returns false immediately.
-            const wasOAuth = await Auth.handleOAuthCallback();
-            if (wasOAuth) return; // navigation already triggered inside handleOAuthCallback
+            let tempMfaToken = null;
+            let tempMfaEmail = null;
 
-            // 2. If the user already has a valid token (e.g. navigated back after login),
-            //    send them straight to the dashboard.
-            if (Auth.isAuthenticated()) {
-                window.location.replace("dashboard.html");
-                return;
+            // Handle OAuth callback (?token=... in URL set by backend)
+            var wasOAuth = await Auth.handleOAuthCallback();
+            if (wasOAuth === true) return; // successful oauth login, redirecting
+            
+            if (wasOAuth && wasOAuth.mfa_required) {
+                tempMfaToken = wasOAuth.temp_token;
+                tempMfaEmail = wasOAuth.email;
+                document.querySelector('.auth-box').style.display = 'none';
+                document.getElementById('mfaBox').style.display = 'block';
+                document.getElementById('mfaCode').focus();
+                // do NOT return here, we need the mfaForm listener below to be registered
             }
 
-            // 3. Wire up the email/password form.
-            //    Using the "submit" event on the <form> means:
-            //      - clicking the submit button triggers it
-            //      - pressing Enter inside any input triggers it
-            //      - the browser's built-in required-field validation runs first
             document.getElementById("loginForm").addEventListener("submit", async function (e) {
-                e.preventDefault(); // stop native form submission (prevents the blink)
-
-                const email    = document.getElementById("email").value.trim();
-                const password = document.getElementById("password").value;
-
-                // Disable the button while the request is in flight
-                const btn = document.getElementById("loginBtn");
+                e.preventDefault();
+                var email = document.getElementById("email").value.trim();
+                var password = document.getElementById("password").value;
+                var btn = document.getElementById("loginBtn");
                 btn.disabled = true;
-
+                btn.textContent = "Logging in...";
                 try {
-                    await Auth.login(email, password);
-                    // Auth.login calls finishLogin on success which navigates to dashboard.
-                    // On failure it shows an error toast and returns false — we re-enable the button.
+                    var res = await Auth.login(email, password);
+                    if (res && res.mfa_required) {
+                        tempMfaToken = res.temp_token;
+                        tempMfaEmail = email;
+                        document.querySelector('.auth-box').style.display = 'none';
+                        document.getElementById('mfaBox').style.display = 'block';
+                        document.getElementById('mfaCode').focus();
+                    }
+                } catch (err) {
+                    // errors handled inside Auth.login
                 } finally {
-                    // Only re-enable if we're still on this page (i.e. login failed)
                     btn.disabled = false;
+                    btn.textContent = "Login";
                 }
+            });
+
+            // Handle MFA form
+            document.getElementById("mfaForm").addEventListener("submit", async function (e) {
+                e.preventDefault();
+                var code = document.getElementById("mfaCode").value.trim();
+                var btn = document.getElementById("mfaBtn");
+                btn.disabled = true;
+                btn.textContent = "Verifying...";
+                
+                try {
+                    // Temporarily set the token in localStorage so API.request can use it
+                    localStorage.setItem('token', tempMfaToken);
+                    
+                    const res = await API.request('POST', '/auth/mfa/verify', { code: code });
+                    
+                    if (res && res.access_token) {
+                        Auth.finishLogin(res.access_token, res.user);
+                    } else {
+                        UI.showError("Failed to verify MFA code.");
+                    }
+                } catch (err) {
+                    UI.showError(err.data ? (err.data.detail || "Invalid MFA code.") : "Invalid MFA code.");
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = "Verify";
+                    // If we failed, the token is technically still in localStorage but it's not fully verified.
+                    // Auth.finishLogin handles overwriting it and redirecting on success.
+                }
+            });
+
+            document.getElementById("cancelMfaBtn").addEventListener("click", function(e) {
+                e.preventDefault();
+                tempMfaToken = null;
+                tempMfaEmail = null;
+                localStorage.removeItem('token');
+                document.getElementById('mfaCode').value = '';
+                document.getElementById('mfaBox').style.display = 'none';
+                document.querySelector('.auth-box').style.display = 'block';
             });
         });
     </script>

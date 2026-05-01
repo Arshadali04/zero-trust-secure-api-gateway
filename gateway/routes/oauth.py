@@ -1,13 +1,17 @@
 from datetime import datetime, timedelta
 import logging
 import os
+from urllib.parse import quote
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi.responses import RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from datetime import timedelta, datetime, timezone
 
 from gateway.core.security import SecurityManager
 from gateway.db.database import get_db
@@ -86,7 +90,7 @@ async def upsert_oauth_user(
     result = await db.execute(select(User).where(User.email == email))
     existing = result.scalar_one_or_none()
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     if existing:
         existing.last_login = now
@@ -116,7 +120,7 @@ async def upsert_oauth_user(
 @router.get("/callback/google")
 async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
     """Google OAuth callback"""
-    frontend_base = "http://127.0.0.1:5500/login.html"
+    frontend_base = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1:8000").rstrip("/") + "/frontend/login.html"
 
     try:
         token = await oauth.google.authorize_access_token(request)
@@ -136,18 +140,27 @@ async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
             return RedirectResponse(url=f"{frontend_base}?error=no_email", status_code=302)
 
         # Upsert user in DB + update last_login
-        await upsert_oauth_user(db, email=email, full_name=full_name)
+        user_db = await upsert_oauth_user(db, email=email, full_name=full_name)
+
+        # Check MFA
+        mfa_req = "false"
+        mfa_ver = True
+        if user_db.mfa_enabled:
+            mfa_req = "true"
+            mfa_ver = False
 
         jwt_token = SecurityManager.create_access_token(
-            data={"sub": email},
+            data={"sub": email, "mfa_verified": mfa_ver},
             expires_delta=timedelta(minutes=30),
         )
         logger.info("Google OAuth successful for: %s", email)
 
-        return RedirectResponse(
-            url=f"{frontend_base}?token={jwt_token}&user={email}",
+        response = RedirectResponse(
+            url=f"{frontend_base}?token={jwt_token}&user={quote(email)}&mfa_required={mfa_req}",
             status_code=302,
         )
+        response.headers["X-Audit-User"] = email
+        return response
 
     except Exception as e:
         logger.error("Google callback error: %s", str(e))
@@ -160,7 +173,7 @@ async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/callback/github")
 async def callback_github(request: Request, db: AsyncSession = Depends(get_db)):
     """GitHub OAuth callback"""
-    frontend_base = "http://127.0.0.1:5500/login.html"
+    frontend_base = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1:8000").rstrip("/") + "/frontend/login.html"
 
     try:
         token = await oauth.github.authorize_access_token(request)
@@ -191,16 +204,23 @@ async def callback_github(request: Request, db: AsyncSession = Depends(get_db)):
                 status_code=302,
             )
         # Upsert user in DB + update last_login
-        await upsert_oauth_user(db, email=email, full_name=full_name)
+        user_db = await upsert_oauth_user(db, email=email, full_name=full_name)
+
+        # Check MFA
+        mfa_req = "false"
+        mfa_ver = True
+        if user_db.mfa_enabled:
+            mfa_req = "true"
+            mfa_ver = False
 
         jwt_token = SecurityManager.create_access_token(
-            data={"sub": email},
+            data={"sub": email, "mfa_verified": mfa_ver},
             expires_delta=timedelta(minutes=30),
         )
         logger.info("GitHub OAuth successful for: %s", email)
 
         return RedirectResponse(
-            url=f"{frontend_base}?token={jwt_token}&user={email}",
+            url=f"{frontend_base}?token={jwt_token}&user={quote(email)}&mfa_required={mfa_req}",
             status_code=302,
         )
 

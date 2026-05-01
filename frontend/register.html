@@ -1,11 +1,28 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - Zero Trust Gateway</title>
-    <link rel="stylesheet" href="css/auth.css">
+    <link rel="stylesheet" href="css/auth.css?v=2">
+    <!-- If already logged in, skip the register page instantly -->
+    <script>
+        (function () {
+            var token = localStorage.getItem('token');
+            if (!token) return;
+            try {
+                var parts = token.split('.');
+                if (parts.length !== 3) return;
+                var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                var padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, '=');
+                var payload = JSON.parse(atob(padded));
+                if (!payload.exp || Date.now() < payload.exp * 1000) {
+                    window.location.replace('dashboard.html');
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 
 <body class="auth-page">
@@ -35,12 +52,26 @@
 
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="••••••••" required>
+                    <div style="position: relative;">
+                        <input type="password" id="password" name="password" placeholder="••••••••" required 
+                               style="width: 100%; padding-right: 40px; box-sizing: border-box;">
+                        <button type="button" id="togglePassword" 
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label for="confirmPassword">Confirm Password</label>
-                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="••••••••" required>
+                    <div style="position: relative;">
+                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="••••••••" required
+                               style="width: 100%; padding-right: 40px; box-sizing: border-box;">
+                        <button type="button" id="toggleConfirmPassword" 
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block">Create Account</button>
@@ -69,10 +100,27 @@
 
     <div id="notification" class="notification"></div>
 
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/ui.js"></script>
+    <script src="js/api.js?v=2"></script>
+    <script src="js/auth.js?v=2"></script>
+    <script src="js/ui.js?v=2"></script>
     <script>
+        // Toggle Password Visibility
+        function setupToggle(inputId, buttonId) {
+            const btn = document.getElementById(buttonId);
+            const input = document.getElementById(inputId);
+            btn.addEventListener("click", () => {
+                if (input.type === "password") {
+                    input.type = "text";
+                    btn.textContent = "🙈";
+                } else {
+                    input.type = "password";
+                    btn.textContent = "👁️";
+                }
+            });
+        }
+        setupToggle("password", "togglePassword");
+        setupToggle("confirmPassword", "toggleConfirmPassword");
+
         document.getElementById("registerForm").addEventListener("submit", async (e) => {
             e.preventDefault();
 
@@ -102,8 +150,8 @@
             }
         });
 
-        // Handle OAuth callback
-        window.addEventListener("load", () => {
+        // Handle OAuth callback / already-logged-in redirect
+        window.addEventListener("load", async () => {
             const params = new URLSearchParams(window.location.search);
             const token = params.get("token");
             const user = params.get("user");

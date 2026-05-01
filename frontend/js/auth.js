@@ -109,14 +109,10 @@ const Auth = {
       UI.showError("Login failed: server did not return a token.");
       return;
     }
-
     _storeSession(token, user || null);
-    UI.hideLoading();
-    UI.showSuccess("Login successful! Redirecting…");
-
-    setTimeout(function () {
-      window.location.replace("dashboard.html");
-    }, 600);
+    // Use timestamp to force browser to fetch a fresh dashboard.html,
+    // bypassing any stale cached version.
+    window.location.replace("dashboard.html?t=" + Date.now());
   },
 
   // ── Email / password login ─────────────────────────────────────────────────
@@ -137,8 +133,13 @@ const Auth = {
         throw { message: "Server did not return an access token." };
       }
 
+      if (response.mfa_required) {
+          UI.hideLoading();
+          return { mfa_required: true, temp_token: token };
+      }
+
       this.finishLogin(token, user);
-      return true;
+      return { success: true };
 
     } catch (error) {
       UI.hideLoading();
@@ -174,6 +175,11 @@ const Auth = {
       if (error) {
         UI.showError(msg || "OAuth login failed. Please try again.");
         return false;
+      }
+
+      const mfa_required = params.get("mfa_required") === "true";
+      if (mfa_required) {
+          return { mfa_required: true, temp_token: token, email: email };
       }
 
       // Build a minimal user from the email query param as a fast fallback.
@@ -265,6 +271,7 @@ const Auth = {
   /**
    * Call at the top of dashboard.html.
    * Redirects to login if not authenticated, otherwise returns the user object.
+   * NEVER returns null while the token is valid — falls back to localStorage cache.
    */
   async requireAuth() {
     if (!this.isAuthenticated()) {
@@ -272,7 +279,7 @@ const Auth = {
       return null;
     }
 
-    // Try to refresh user data; fall back to localStorage cache gracefully.
+    // Try to get fresh user data from backend.
     try {
       const fresh = await API.request("GET", "/auth/me");
       if (fresh && typeof fresh === "object") {
@@ -280,9 +287,38 @@ const Auth = {
         return fresh;
       }
     } catch (e) {
-      console.warn("[Auth] /auth/me refresh failed on dashboard, using cached user:", e);
+      // If the backend says the token is invalid or requires MFA, 
+      // the token is effectively useless. Clear session and redirect.
+      if (e.status === 401 || (e.status === 403 && e.data && e.data.detail === "mfa_required")) {
+        console.warn("[Auth] Token invalid or MFA required, redirecting to login...");
+        _clearSession();
+        window.location.replace("login.html");
+        return null;
+      }
+      
+      // Other errors (e.g. 429 rate limit, network error) — not fatal.
+      // Fall back to cached user — DO NOT redirect to login.
+      console.warn("[Auth] /auth/me failed, using cached user:", e.status || e);
     }
 
-    return this.getCurrentUser();
+    // Return cached user. If there's truly no cached user despite a valid
+    // token, build a minimal object from the token payload itself.
+    const cached = this.getCurrentUser();
+    if (cached) return cached;
+
+    // Last resort: decode email from token and return a minimal user object.
+    try {
+      const parts = this.getToken().split(".");
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (payload.sub) {
+        const minimal = { email: payload.sub, username: payload.sub.split("@")[0], role: "user" };
+        localStorage.setItem("user", JSON.stringify(minimal));
+        return minimal;
+      }
+    } catch (e) { /* ignore */ }
+
+    // Token is valid but we couldn't get any user data at all — rare edge case.
+    // Still don't redirect; return a placeholder so the dashboard can render.
+    return { email: "unknown", username: "User", role: "user" };
   },
 };

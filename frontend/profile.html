@@ -5,7 +5,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile - Zero Trust Gateway</title>
-    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css?v=2">
+    <script>
+        (function () {
+            var token = localStorage.getItem('token');
+            if (!token) { window.location.replace('login.html'); return; }
+            try {
+                var parts = token.split('.');
+                if (parts.length !== 3) { localStorage.removeItem('token'); window.location.replace('login.html'); return; }
+                var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                var padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, '=');
+                var payload = JSON.parse(atob(padded));
+                if (payload.exp && Date.now() >= payload.exp * 1000) {
+                    localStorage.removeItem('token');
+                    window.location.replace('login.html');
+                }
+            } catch (e) { window.location.replace('login.html'); }
+        })();
+    </script>
 </head>
 
 <body>
@@ -18,6 +35,7 @@
             <ul class="nav-menu">
                 <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
                 <li><a href="profile.html" class="nav-link active">Profile</a></li>
+                <li id="navAdminItem" style="display: none;"><a href="admin.html" class="nav-link" style="color: #ef4444; font-weight: 700;">Admin Panel</a></li>
                 <li class="nav-user">
                     <span id="userName">User</span>
                     <button class="nav-link btn-logout" onclick="Auth.logout()">Logout</button>
@@ -41,11 +59,17 @@
                 <div class="info-box">
                     <div class="info-item">
                         <label>Full Name</label>
-                        <p id="profileFullName">Loading...</p>
+                        <div style="display: flex; gap: 10px; flex-grow: 1; max-width: 250px; justify-content: flex-end;">
+                            <input type="text" id="editFullName" style="display:none; width: 100%; padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px;" />
+                            <p id="profileFullName">Loading...</p>
+                        </div>
                     </div>
                     <div class="info-item">
                         <label>Username</label>
-                        <p id="profileUsername">Loading...</p>
+                        <div style="display: flex; gap: 10px; flex-grow: 1; max-width: 250px; justify-content: flex-end;">
+                            <input type="text" id="editUsername" style="display:none; width: 100%; padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px;" />
+                            <p id="profileUsername">Loading...</p>
+                        </div>
                     </div>
                     <div class="info-item">
                         <label>Email</label>
@@ -71,6 +95,57 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Change Password Section -->
+            <div class="profile-section" style="grid-column: 1 / -1;">
+                <h2>Change Password</h2>
+                <div class="info-box" style="display: flex; flex-direction: column; gap: 1rem; max-width: 500px;">
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Current Password</label>
+                        <input type="password" id="currentPassword" placeholder="••••••••" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">New Password</label>
+                        <input type="password" id="newPassword" placeholder="••••••••" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                        <small style="display: block; margin-top: 0.25rem; color: #6b7280; font-size: 0.75rem;">
+                            Must be 8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%)
+                        </small>
+                    </div>
+                    <button id="changePwdBtn" class="btn" style="background: #8b5cf6; color: white; width: fit-content;" onclick="changePassword()">Update Password</button>
+                </div>
+            </div>
+
+            <!-- MFA Section -->
+            <div class="profile-section" style="grid-column: 1 / -1;">
+                <h2>🔑 Two-Factor Authentication (MFA)</h2>
+                <div id="mfaStatus" style="margin-bottom:1rem;">
+                    <span id="mfaStatusBadge" style="font-size:1rem;">Checking…</span>
+                </div>
+
+                <!-- MFA DISABLED state -->
+                <div id="mfaSetupArea" style="display:none;">
+                    <p style="color:#6b7280;margin-bottom:1rem;">Scan the QR code with Google Authenticator, Authy, or any TOTP app, then enter the 6-digit code to activate MFA.</p>
+                    <div id="mfaQRWrap" style="margin-bottom:1rem;"></div>
+                    <div style="margin-bottom:0.5rem;">
+                        <label style="font-weight:600;">Secret Key (manual entry):</label>
+                        <code id="mfaSecretText" style="display:block;margin-top:0.3rem;background:#f3f4f6;padding:0.4rem 0.8rem;border-radius:6px;font-size:.9rem;"></code>
+                    </div>
+                    <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap;">
+                        <input type="text" id="mfaSetupCode" maxlength="6" placeholder="6-digit code" style="padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;width:150px;font-size:1.1rem;letter-spacing:.2em;text-align:center;" />
+                        <button class="btn" style="background:#10b981;color:white;" onclick="confirmMFASetup()">✅ Activate MFA</button>
+                        <button class="btn btn-secondary" onclick="cancelMFASetup()">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Buttons shown based on MFA state -->
+                <div id="mfaActions" style="display:flex;gap:.75rem;flex-wrap:wrap;"></div>
+            </div>
+        </div>
+
+        <div class="profile-actions" style="margin-top: 1rem;">
+            <button id="editBtn" class="btn" style="background: var(--primary); color: white;" onclick="toggleEdit()">Edit Profile</button>
+            <button id="saveBtn" class="btn" style="display: none; background: #10b981; color: white;" onclick="saveProfile()">Save Changes</button>
+            <button id="cancelBtn" class="btn btn-secondary" style="display: none;" onclick="cancelEdit()">Cancel</button>
         </div>
 
         <div class="profile-actions">
@@ -81,21 +156,93 @@
 
     <div id="notification" class="notification"></div>
 
-    <script src="js/api.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/auth.js"></script>
+    <script src="js/api.js?v=4"></script>
+    <script src="js/ui.js?v=4"></script>
+    <script src="js/auth.js?v=4"></script>
     <script>
+        // ── MFA helpers ───────────────────────────────────────────────────────
+        let _mfaEnabled = false;
+
+        async function loadMFAStatus() {
+            try {
+                const s = await API.request('GET', '/auth/mfa/status');
+                _mfaEnabled = s.mfa_enabled;
+            } catch(e) { _mfaEnabled = false; }
+            renderMFAState();
+        }
+
+        function renderMFAState() {
+            const badge = document.getElementById('mfaStatusBadge');
+            const actions = document.getElementById('mfaActions');
+            const setupArea = document.getElementById('mfaSetupArea');
+            if (_mfaEnabled) {
+                badge.innerHTML = '<span style="background:#d1fae5;color:#065f46;padding:.3em .9em;border-radius:99px;font-weight:700;">✅ MFA Enabled</span>';
+                setupArea.style.display = 'none';
+                actions.innerHTML = `<button class="btn btn-danger" onclick="startMFADisable()">🔓 Disable MFA</button>`;
+            } else {
+                badge.innerHTML = '<span style="background:#fee2e2;color:#991b1b;padding:.3em .9em;border-radius:99px;font-weight:700;">❌ MFA Disabled</span>';
+                setupArea.style.display = 'none';
+                actions.innerHTML = `<button class="btn" style="background:#6366f1;color:white;" onclick="startMFASetup()">🔑 Enable MFA</button>`;
+            }
+        }
+
+        async function startMFASetup() {
+            const btn = event.target;
+            btn.disabled = true; btn.textContent = 'Setting up…';
+            try {
+                const data = await API.request('POST', '/auth/mfa/setup');
+                document.getElementById('mfaSecretText').textContent = data.secret;
+                const qrWrap = document.getElementById('mfaQRWrap');
+                if (data.qr_code_base64) {
+                    qrWrap.innerHTML = `<img src="data:image/png;base64,${data.qr_code_base64}" style="width:200px;height:200px;border:4px solid #e5e7eb;border-radius:12px;" alt="MFA QR Code" />`;
+                } else {
+                    qrWrap.innerHTML = `<p style="color:#6b7280;font-size:.9rem;">QR image unavailable. Use the secret key above to add manually.</p>`;
+                }
+                document.getElementById('mfaSetupArea').style.display = 'block';
+                document.getElementById('mfaActions').innerHTML = '';
+            } catch(e) {
+                UI.showError('Failed to start MFA setup.');
+            } finally { btn.disabled = false; btn.textContent = '🔑 Enable MFA'; }
+        }
+
+        async function confirmMFASetup() {
+            const code = document.getElementById('mfaSetupCode').value.trim();
+            if (code.length !== 6) { UI.showError('Enter the 6-digit code from your authenticator app.'); return; }
+            try {
+                await API.request('POST', '/auth/mfa/verify-setup', { code });
+                UI.showSuccess('MFA has been activated! 🎉');
+                _mfaEnabled = true;
+                renderMFAState();
+            } catch(e) { UI.showError('Invalid code. Please try again.'); }
+        }
+
+        function cancelMFASetup() {
+            document.getElementById('mfaSetupArea').style.display = 'none';
+            renderMFAState();
+        }
+
+        async function startMFADisable() {
+            const code = prompt('Enter your current 6-digit authenticator code to disable MFA:');
+            if (!code) return;
+            try {
+                await API.request('POST', '/auth/mfa/disable', { code: code.trim() });
+                UI.showSuccess('MFA has been disabled.');
+                _mfaEnabled = false;
+                renderMFAState();
+            } catch(e) { UI.showError('Invalid code. MFA not disabled.'); }
+        }
         window.addEventListener('load', async () => {
             if (!Auth.isAuthenticated()) {
                 window.location.href = 'login.html';
                 return;
             }
 
-            // fetch fresh user from backend and store it
+            // Load MFA status in parallel
+            loadMFAStatus();
+
             const user = await Auth.syncCurrentUser();
 
             if (!user) {
-                // fallback to whatever is in localStorage
                 const cached = Auth.getCurrentUser();
                 if (!cached) return;
                 render(cached);
@@ -105,8 +252,16 @@
             render(user);
 
             function render(u) {
+                if (u.role === 'admin') {
+                    const adminNav = document.getElementById("navAdminItem");
+                    if (adminNav) adminNav.style.display = "block";
+                }
+                
                 document.getElementById('profileFullName').textContent = u.full_name || 'Not set';
                 document.getElementById('profileUsername').textContent = u.username || 'Not set';
+                document.getElementById('editFullName').value = u.full_name || '';
+                document.getElementById('editUsername').value = u.username || '';
+
                 document.getElementById('profileEmail').textContent = u.email || 'Not set';
                 document.getElementById('profileID').textContent = u.id || '—';
                 document.getElementById('profileRole').textContent = u.role || 'user';
@@ -114,6 +269,91 @@
                     u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
                 document.getElementById('userName').textContent = u.username || 'User';
             }
+
+            window.toggleEdit = function() {
+                document.getElementById('profileFullName').style.display = 'none';
+                document.getElementById('profileUsername').style.display = 'none';
+                document.getElementById('editFullName').style.display = 'block';
+                document.getElementById('editUsername').style.display = 'block';
+                
+                document.getElementById('editBtn').style.display = 'none';
+                document.getElementById('saveBtn').style.display = 'block';
+                document.getElementById('cancelBtn').style.display = 'block';
+            };
+
+            window.cancelEdit = function() {
+                document.getElementById('profileFullName').style.display = 'block';
+                document.getElementById('profileUsername').style.display = 'block';
+                document.getElementById('editFullName').style.display = 'none';
+                document.getElementById('editUsername').style.display = 'none';
+                
+                document.getElementById('editBtn').style.display = 'block';
+                document.getElementById('saveBtn').style.display = 'none';
+                document.getElementById('cancelBtn').style.display = 'none';
+                
+                // Reset inputs to original values
+                const u = Auth.getCurrentUser();
+                if (u) render(u);
+            };
+
+            window.saveProfile = async function() {
+                const btn = document.getElementById('saveBtn');
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+
+                try {
+                    const payload = {
+                        full_name: document.getElementById('editFullName').value.trim() || null,
+                        username: document.getElementById('editUsername').value.trim()
+                    };
+
+                    const updatedUser = await API.request("PATCH", "/auth/me", payload);
+                    if (updatedUser) {
+                        localStorage.setItem("user", JSON.stringify(updatedUser)); // Update local cache
+                        render(updatedUser);
+                        UI.showSuccess("Profile updated successfully!");
+                        cancelEdit();
+                    }
+                } catch (e) {
+                    // Error is shown by API.request
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Save Changes';
+                }
+            };
+
+            window.changePassword = async function() {
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+
+                if (!currentPassword || !newPassword) {
+                    UI.showError("Both current and new passwords are required.");
+                    return;
+                }
+
+                const btn = document.getElementById('changePwdBtn');
+                btn.disabled = true;
+                btn.textContent = 'Updating...';
+
+                try {
+                    const payload = {
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    };
+
+                    await API.request("PATCH", "/auth/me/password", payload);
+                    UI.showSuccess("Password successfully updated!");
+                    
+                    // clear fields
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                } catch (e) {
+                    // UI.showError handles visual
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Update Password';
+                }
+            };
         });
     </script>
 </body>
