@@ -51,14 +51,17 @@
                     <label for="password">Password</label>
                     <div style="position: relative;">
                         <input type="password" id="password" name="password" placeholder="••••••••" required
-                            autocomplete="current-password" style="width: 100%; padding-right: 40px; box-sizing: border-box;" />
+                            autocomplete="current-password"
+                            style="width: 100%; padding-right: 40px; box-sizing: border-box;" />
                         <button type="button" id="togglePassword"
-                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
                             👁️
                         </button>
                     </div>
                     <div style="text-align: right; margin-top: 0.5rem;">
-                        <a href="forgot-password.html" style="font-size: 0.85rem; color: var(--primary); text-decoration: none;">Forgot Password?</a>
+                        <a href="forgot-password.html"
+                            style="font-size: 0.85rem; color: var(--primary); text-decoration: none;">Forgot
+                            Password?</a>
                     </div>
                 </div>
 
@@ -93,7 +96,9 @@
             <form id="mfaForm" class="auth-form" action="javascript:void(0)">
                 <div class="form-group">
                     <label for="mfaCode">Authenticator Code</label>
-                    <input type="text" id="mfaCode" name="mfaCode" placeholder="123456" required autocomplete="one-time-code" maxlength="6" style="text-align:center; font-size:1.5rem; letter-spacing:0.2em; font-family:monospace;" />
+                    <input type="text" id="mfaCode" name="mfaCode" placeholder="123456" required
+                        autocomplete="one-time-code" maxlength="6"
+                        style="text-align:center; font-size:1.5rem; letter-spacing:0.2em; font-family:monospace;" />
                 </div>
                 <button id="mfaBtn" type="submit" class="btn btn-primary btn-block">Verify</button>
             </form>
@@ -129,7 +134,7 @@
             // Handle OAuth callback (?token=... in URL set by backend)
             var wasOAuth = await Auth.handleOAuthCallback();
             if (wasOAuth === true) return; // successful oauth login, redirecting
-            
+
             if (wasOAuth && wasOAuth.mfa_required) {
                 tempMfaToken = wasOAuth.temp_token;
                 tempMfaEmail = wasOAuth.email;
@@ -170,13 +175,13 @@
                 var btn = document.getElementById("mfaBtn");
                 btn.disabled = true;
                 btn.textContent = "Verifying...";
-                
+
                 try {
                     // Temporarily set the token in localStorage so API.request can use it
                     localStorage.setItem('token', tempMfaToken);
-                    
+
                     const res = await API.request('POST', '/auth/mfa/verify', { code: code });
-                    
+
                     if (res && res.access_token) {
                         Auth.finishLogin(res.access_token, res.user);
                     } else {
@@ -192,7 +197,7 @@
                 }
             });
 
-            document.getElementById("cancelMfaBtn").addEventListener("click", function(e) {
+            document.getElementById("cancelMfaBtn").addEventListener("click", function (e) {
                 e.preventDefault();
                 tempMfaToken = null;
                 tempMfaEmail = null;
