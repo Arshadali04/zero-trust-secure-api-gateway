@@ -29,7 +29,7 @@ WINDOW_SECONDS = 60
 
 LIMITS = {
     "auth":    10,   # /auth/login, /auth/register
-    "default": 1000, # Raised to 1000 so the Risk Engine can be demonstrated multiple times
+    "default": 100, # Raised to 1000 so the Risk Engine can be demonstrated multiple times
 }
 
 AUTH_RATE_LIMITED_PATHS = {"/auth/login", "/auth/register"}

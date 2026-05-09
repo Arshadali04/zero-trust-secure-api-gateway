@@ -1,361 +1,221 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile - Zero Trust Gateway</title>
-    <link rel="stylesheet" href="css/dashboard.css?v=2">
-    <script>
-        (function () {
-            var token = localStorage.getItem('token');
-            if (!token) { window.location.replace('login.html'); return; }
-            try {
-                var parts = token.split('.');
-                if (parts.length !== 3) { localStorage.removeItem('token'); window.location.replace('login.html'); return; }
-                var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-                var padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, '=');
-                var payload = JSON.parse(atob(padded));
-                if (payload.exp && Date.now() >= payload.exp * 1000) {
-                    localStorage.removeItem('token');
-                    window.location.replace('login.html');
-                }
-            } catch (e) { window.location.replace('login.html'); }
-        })();
-    </script>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Profile — Zero Trust Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/dashboard.css?v=4">
+  <script>
+    (function(){var t=localStorage.getItem('token');if(!t){window.location.replace('login.html');return;}
+    try{var p=t.split('.');if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
+    var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b.padEnd(Math.ceil(b.length/4)*4,'=');
+    var pl=JSON.parse(atob(pad));if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
+    }catch(e){window.location.replace('login.html');}})();
+  </script>
 </head>
-
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <span class="logo-icon">🔐</span>
-                Zero Trust Gateway
-            </div>
-            <ul class="nav-menu">
-                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-                <li><a href="profile.html" class="nav-link active">Profile</a></li>
-                <li id="navAdminItem" style="display: none;"><a href="admin.html" class="nav-link" style="color: #ef4444; font-weight: 700;">Admin Panel</a></li>
-                <li class="nav-user">
-                    <span id="userName">User</span>
-                    <button class="nav-link btn-logout" onclick="Auth.logout()">Logout</button>
-                </li>
-            </ul>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <div class="sidebar-brand-name">Zero<span>Trust</span></div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a href="dashboard.html" class="nav-item"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+    <a href="profile.html" class="nav-item active"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</a>
+    <div class="nav-section-label" id="adminSectionLabel" style="display:none;">Admin</div>
+    <a href="admin.html" class="nav-item" id="navAdminItem" style="display:none;"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33"/></svg>Admin Panel</a>
+    <div class="nav-section-label">Account</div>
+    <button class="nav-item danger" onclick="Auth.logout()"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Logout</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name" id="sidebarName">Loading...</div>
+        <div class="sidebar-user-role" id="sidebarRole">user</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div class="main-content">
+  <div class="topbar">
+    <div><div class="topbar-title">Your Profile</div><div class="topbar-meta">Manage identity &amp; security</div></div>
+    <div class="topbar-right">
+      <button id="editBtn" class="btn btn-primary btn-sm" onclick="toggleEdit()">Edit Profile</button>
+      <button id="saveBtn" class="btn btn-success btn-sm" style="display:none;" onclick="saveProfile()">Save Changes</button>
+      <button id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelEdit()">Cancel</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <div class="profile-layout">
+
+      <!-- Personal Info -->
+      <div class="profile-card">
+        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Personal Information</h3>
+        <div class="profile-avatar"><div class="avatar-ring" id="profileAvatarLetter">?</div></div>
+        <div class="info-row"><label>Full Name</label>
+          <div class="info-value-wrap">
+            <input type="text" id="editFullName" class="editable-input" style="display:none;">
+            <span id="profileFullName" class="info-value">Loading...</span>
+          </div>
         </div>
-    </nav>
-
-    <div class="dashboard-container">
-        <header class="dashboard-header">
-            <h1>Your Profile</h1>
-            <p>Manage your account information</p>
-        </header>
-
-        <div class="profile-grid">
-            <div class="profile-section">
-                <h2>Personal Information</h2>
-                <div class="profile-avatar">
-                    <div class="avatar">👤</div>
-                </div>
-                <div class="info-box">
-                    <div class="info-item">
-                        <label>Full Name</label>
-                        <div style="display: flex; gap: 10px; flex-grow: 1; max-width: 250px; justify-content: flex-end;">
-                            <input type="text" id="editFullName" style="display:none; width: 100%; padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px;" />
-                            <p id="profileFullName">Loading...</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <label>Username</label>
-                        <div style="display: flex; gap: 10px; flex-grow: 1; max-width: 250px; justify-content: flex-end;">
-                            <input type="text" id="editUsername" style="display:none; width: 100%; padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px;" />
-                            <p id="profileUsername">Loading...</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <label>Email</label>
-                        <p id="profileEmail">Loading...</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="profile-section">
-                <h2>Account Details</h2>
-                <div class="info-box">
-                    <div class="info-item">
-                        <label>User ID</label>
-                        <p id="profileID">Loading...</p>
-                    </div>
-                    <div class="info-item">
-                        <label>Role</label>
-                        <p id="profileRole">Loading...</p>
-                    </div>
-                    <div class="info-item">
-                        <label>Account Created</label>
-                        <p id="profileCreated">Loading...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Change Password Section -->
-            <div class="profile-section" style="grid-column: 1 / -1;">
-                <h2>Change Password</h2>
-                <div class="info-box" style="display: flex; flex-direction: column; gap: 1rem; max-width: 500px;">
-                    <div>
-                        <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Current Password</label>
-                        <input type="password" id="currentPassword" placeholder="••••••••" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
-                    </div>
-                    <div>
-                        <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">New Password</label>
-                        <input type="password" id="newPassword" placeholder="••••••••" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
-                        <small style="display: block; margin-top: 0.25rem; color: #6b7280; font-size: 0.75rem;">
-                            Must be 8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%)
-                        </small>
-                    </div>
-                    <button id="changePwdBtn" class="btn" style="background: #8b5cf6; color: white; width: fit-content;" onclick="changePassword()">Update Password</button>
-                </div>
-            </div>
-
-            <!-- MFA Section -->
-            <div class="profile-section" style="grid-column: 1 / -1;">
-                <h2>🔑 Two-Factor Authentication (MFA)</h2>
-                <div id="mfaStatus" style="margin-bottom:1rem;">
-                    <span id="mfaStatusBadge" style="font-size:1rem;">Checking…</span>
-                </div>
-
-                <!-- MFA DISABLED state -->
-                <div id="mfaSetupArea" style="display:none;">
-                    <p style="color:#6b7280;margin-bottom:1rem;">Scan the QR code with Google Authenticator, Authy, or any TOTP app, then enter the 6-digit code to activate MFA.</p>
-                    <div id="mfaQRWrap" style="margin-bottom:1rem;"></div>
-                    <div style="margin-bottom:0.5rem;">
-                        <label style="font-weight:600;">Secret Key (manual entry):</label>
-                        <code id="mfaSecretText" style="display:block;margin-top:0.3rem;background:#f3f4f6;padding:0.4rem 0.8rem;border-radius:6px;font-size:.9rem;"></code>
-                    </div>
-                    <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap;">
-                        <input type="text" id="mfaSetupCode" maxlength="6" placeholder="6-digit code" style="padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;width:150px;font-size:1.1rem;letter-spacing:.2em;text-align:center;" />
-                        <button class="btn" style="background:#10b981;color:white;" onclick="confirmMFASetup()">✅ Activate MFA</button>
-                        <button class="btn btn-secondary" onclick="cancelMFASetup()">Cancel</button>
-                    </div>
-                </div>
-
-                <!-- Buttons shown based on MFA state -->
-                <div id="mfaActions" style="display:flex;gap:.75rem;flex-wrap:wrap;"></div>
-            </div>
+        <div class="info-row"><label>Username</label>
+          <div class="info-value-wrap">
+            <input type="text" id="editUsername" class="editable-input" style="display:none;">
+            <span id="profileUsername" class="info-value">Loading...</span>
+          </div>
         </div>
+        <div class="info-row"><label>Email</label><span id="profileEmail" class="info-value">Loading...</span></div>
+      </div>
 
-        <div class="profile-actions" style="margin-top: 1rem;">
-            <button id="editBtn" class="btn" style="background: var(--primary); color: white;" onclick="toggleEdit()">Edit Profile</button>
-            <button id="saveBtn" class="btn" style="display: none; background: #10b981; color: white;" onclick="saveProfile()">Save Changes</button>
-            <button id="cancelBtn" class="btn btn-secondary" style="display: none;" onclick="cancelEdit()">Cancel</button>
-        </div>
+      <!-- Account Details -->
+      <div class="profile-card">
+        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Account Details</h3>
+        <div class="info-row"><label>User ID</label><span id="profileID" class="info-value">—</span></div>
+        <div class="info-row"><label>Role</label><span id="profileRole" class="info-value">—</span></div>
+        <div class="info-row"><label>Member Since</label><span id="profileCreated" class="info-value">—</span></div>
+      </div>
 
-        <div class="profile-actions">
-            <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">Back to Dashboard</button>
-            <button class="btn btn-danger" onclick="Auth.logout()">Logout</button>
+      <!-- Change Password -->
+      <div class="profile-card" style="grid-column:1/-1;">
+        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Change Password</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;align-items:start;">
+          <div class="form-field">
+            <label for="currentPassword">Current Password</label>
+            <input type="password" id="currentPassword" placeholder="••••••••••">
+          </div>
+          <div class="form-field">
+            <label for="newPassword">New Password</label>
+            <input type="password" id="newPassword" placeholder="••••••••••">
+            <p class="form-hint">8+ chars · uppercase · lowercase · digit · special character</p>
+          </div>
         </div>
+        <div style="margin-top:1rem;">
+          <button id="changePwdBtn" class="btn btn-primary" onclick="changePassword()">Update Password</button>
+        </div>
+      </div>
+
+      <!-- MFA -->
+      <div class="profile-card" id="mfa" style="grid-column:1/-1;">
+        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Two-Factor Authentication</h3>
+        <div class="mfa-status-row">
+          <span id="mfaStatusBadge"></span>
+          <div id="mfaActions"></div>
+        </div>
+        <div id="mfaSetupArea" class="mfa-setup-panel" style="display:none;">
+          <p class="mfa-description">Scan the QR code below with Google Authenticator, Authy, or any TOTP-compatible app. Then enter the 6-digit code to activate MFA on your account.</p>
+          <div class="mfa-qr-center" id="mfaQRWrap"></div>
+          <div class="mfa-secret-box">
+            <label>Manual entry — Secret Key</label>
+            <code id="mfaSecretText" class="mfa-secret-code"></code>
+          </div>
+          <div class="mfa-controls">
+            <input type="text" id="mfaSetupCode" maxlength="6" placeholder="000000" class="mfa-pin-input" inputmode="numeric">
+            <button class="btn btn-success" onclick="confirmMFASetup()">Activate MFA</button>
+            <button class="btn btn-secondary" onclick="cancelMFASetup()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <div id="notification" class="notification"></div>
+    <div style="display:flex;justify-content:center;margin-top:1rem;">
+      <a href="dashboard.html" class="btn btn-secondary">← Back to Dashboard</a>
+    </div>
+  </div>
+</div>
 
-    <script src="js/api.js?v=4"></script>
-    <script src="js/ui.js?v=4"></script>
-    <script src="js/auth.js?v=4"></script>
-    <script>
-        // ── MFA helpers ───────────────────────────────────────────────────────
-        let _mfaEnabled = false;
+<div id="notification" class="notification"></div>
+<script src="js/api.js?v=4"></script>
+<script src="js/ui.js?v=4"></script>
+<script src="js/auth.js?v=4"></script>
+<script>
+  let _mfaEnabled=false;
+  async function loadMFAStatus(){try{const s=await API.request('GET','/auth/mfa/status');_mfaEnabled=s.mfa_enabled;}catch(e){_mfaEnabled=false;}renderMFAState();}
+  function renderMFAState(){
+    const badge=document.getElementById('mfaStatusBadge');
+    const actions=document.getElementById('mfaActions');
+    const setup=document.getElementById('mfaSetupArea');
+    if(_mfaEnabled){
+      badge.innerHTML='<span class="badge badge-success">MFA Enabled</span>';
+      setup.style.display='none';
+      actions.innerHTML='<button class="btn btn-danger btn-sm" onclick="startMFADisable()">Disable MFA</button>';
+    }else{
+      badge.innerHTML='<span class="badge badge-danger">MFA Disabled</span>';
+      setup.style.display='none';
+      actions.innerHTML='<button class="btn btn-primary btn-sm" onclick="startMFASetup()">Enable MFA</button>';
+    }
+  }
+  async function startMFASetup(){const btn=event.target;btn.disabled=true;btn.textContent='Setting up…';
+    try{const d=await API.request('POST','/auth/mfa/setup');
+      document.getElementById('mfaSecretText').textContent=d.secret;
+      document.getElementById('mfaQRWrap').innerHTML=d.qr_code_base64?`<img src="data:image/png;base64,${d.qr_code_base64}" alt="MFA QR">`:'<p class="mfa-description">QR unavailable — use the secret key above.</p>';
+      document.getElementById('mfaSetupArea').style.display='block';
+      document.getElementById('mfaActions').innerHTML='';
+    }catch(e){UI.showError('Failed to start MFA setup.');}finally{btn.disabled=false;btn.textContent='Enable MFA';}}
+  async function confirmMFASetup(){const code=document.getElementById('mfaSetupCode').value.trim();
+    if(code.length!==6){UI.showError('Enter the 6-digit code.');return;}
+    try{await API.request('POST','/auth/mfa/verify-setup',{code});UI.showSuccess('MFA activated!');_mfaEnabled=true;renderMFAState();}catch(e){UI.showError('Invalid code. Try again.');}}
+  function cancelMFASetup(){document.getElementById('mfaSetupArea').style.display='none';renderMFAState();}
+  async function startMFADisable(){const code=prompt('Enter your 6-digit authenticator code to disable MFA:');if(!code)return;
+    try{await API.request('POST','/auth/mfa/disable',{code:code.trim()});UI.showSuccess('MFA disabled.');_mfaEnabled=false;renderMFAState();}catch(e){UI.showError('Invalid code. MFA not disabled.');}}
 
-        async function loadMFAStatus() {
-            try {
-                const s = await API.request('GET', '/auth/mfa/status');
-                _mfaEnabled = s.mfa_enabled;
-            } catch(e) { _mfaEnabled = false; }
-            renderMFAState();
-        }
+  window.addEventListener('load',async()=>{
+    if(!Auth.isAuthenticated()){window.location.href='login.html';return;}
+    loadMFAStatus();
+    const user=await Auth.syncCurrentUser()||Auth.getCurrentUser();
+    if(!user)return;
+    render(user);
 
-        function renderMFAState() {
-            const badge = document.getElementById('mfaStatusBadge');
-            const actions = document.getElementById('mfaActions');
-            const setupArea = document.getElementById('mfaSetupArea');
-            if (_mfaEnabled) {
-                badge.innerHTML = '<span style="background:#d1fae5;color:#065f46;padding:.3em .9em;border-radius:99px;font-weight:700;">✅ MFA Enabled</span>';
-                setupArea.style.display = 'none';
-                actions.innerHTML = `<button class="btn btn-danger" onclick="startMFADisable()">🔓 Disable MFA</button>`;
-            } else {
-                badge.innerHTML = '<span style="background:#fee2e2;color:#991b1b;padding:.3em .9em;border-radius:99px;font-weight:700;">❌ MFA Disabled</span>';
-                setupArea.style.display = 'none';
-                actions.innerHTML = `<button class="btn" style="background:#6366f1;color:white;" onclick="startMFASetup()">🔑 Enable MFA</button>`;
-            }
-        }
+    function render(u){
+      if(u.role==='admin'){var n=document.getElementById('navAdminItem');if(n)n.style.display='flex';var l=document.getElementById('adminSectionLabel');if(l)l.style.display='block';}
+      const initials=(u.username||'?')[0].toUpperCase();
+      document.getElementById('profileAvatarLetter').textContent=initials;
+      document.getElementById('sidebarAvatar').textContent=initials;
+      document.getElementById('sidebarName').textContent=u.username||'User';
+      document.getElementById('sidebarRole').textContent=u.role||'user';
+      document.getElementById('profileFullName').textContent=u.full_name||'Not set';
+      document.getElementById('profileUsername').textContent=u.username||'Not set';
+      document.getElementById('editFullName').value=u.full_name||'';
+      document.getElementById('editUsername').value=u.username||'';
+      document.getElementById('profileEmail').textContent=u.email||'Not set';
+      document.getElementById('profileID').textContent=u.id||'—';
+      document.getElementById('profileRole').innerHTML=`<span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${(u.role||'user').toUpperCase()}</span>`;
+      document.getElementById('profileCreated').textContent=u.created_at?new Date(u.created_at).toLocaleDateString():'—';
+    }
 
-        async function startMFASetup() {
-            const btn = event.target;
-            btn.disabled = true; btn.textContent = 'Setting up…';
-            try {
-                const data = await API.request('POST', '/auth/mfa/setup');
-                document.getElementById('mfaSecretText').textContent = data.secret;
-                const qrWrap = document.getElementById('mfaQRWrap');
-                if (data.qr_code_base64) {
-                    qrWrap.innerHTML = `<img src="data:image/png;base64,${data.qr_code_base64}" style="width:200px;height:200px;border:4px solid #e5e7eb;border-radius:12px;" alt="MFA QR Code" />`;
-                } else {
-                    qrWrap.innerHTML = `<p style="color:#6b7280;font-size:.9rem;">QR image unavailable. Use the secret key above to add manually.</p>`;
-                }
-                document.getElementById('mfaSetupArea').style.display = 'block';
-                document.getElementById('mfaActions').innerHTML = '';
-            } catch(e) {
-                UI.showError('Failed to start MFA setup.');
-            } finally { btn.disabled = false; btn.textContent = '🔑 Enable MFA'; }
-        }
-
-        async function confirmMFASetup() {
-            const code = document.getElementById('mfaSetupCode').value.trim();
-            if (code.length !== 6) { UI.showError('Enter the 6-digit code from your authenticator app.'); return; }
-            try {
-                await API.request('POST', '/auth/mfa/verify-setup', { code });
-                UI.showSuccess('MFA has been activated! 🎉');
-                _mfaEnabled = true;
-                renderMFAState();
-            } catch(e) { UI.showError('Invalid code. Please try again.'); }
-        }
-
-        function cancelMFASetup() {
-            document.getElementById('mfaSetupArea').style.display = 'none';
-            renderMFAState();
-        }
-
-        async function startMFADisable() {
-            const code = prompt('Enter your current 6-digit authenticator code to disable MFA:');
-            if (!code) return;
-            try {
-                await API.request('POST', '/auth/mfa/disable', { code: code.trim() });
-                UI.showSuccess('MFA has been disabled.');
-                _mfaEnabled = false;
-                renderMFAState();
-            } catch(e) { UI.showError('Invalid code. MFA not disabled.'); }
-        }
-        window.addEventListener('load', async () => {
-            if (!Auth.isAuthenticated()) {
-                window.location.href = 'login.html';
-                return;
-            }
-
-            // Load MFA status in parallel
-            loadMFAStatus();
-
-            const user = await Auth.syncCurrentUser();
-
-            if (!user) {
-                const cached = Auth.getCurrentUser();
-                if (!cached) return;
-                render(cached);
-                return;
-            }
-
-            render(user);
-
-            function render(u) {
-                if (u.role === 'admin') {
-                    const adminNav = document.getElementById("navAdminItem");
-                    if (adminNav) adminNav.style.display = "block";
-                }
-                
-                document.getElementById('profileFullName').textContent = u.full_name || 'Not set';
-                document.getElementById('profileUsername').textContent = u.username || 'Not set';
-                document.getElementById('editFullName').value = u.full_name || '';
-                document.getElementById('editUsername').value = u.username || '';
-
-                document.getElementById('profileEmail').textContent = u.email || 'Not set';
-                document.getElementById('profileID').textContent = u.id || '—';
-                document.getElementById('profileRole').textContent = u.role || 'user';
-                document.getElementById('profileCreated').textContent =
-                    u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
-                document.getElementById('userName').textContent = u.username || 'User';
-            }
-
-            window.toggleEdit = function() {
-                document.getElementById('profileFullName').style.display = 'none';
-                document.getElementById('profileUsername').style.display = 'none';
-                document.getElementById('editFullName').style.display = 'block';
-                document.getElementById('editUsername').style.display = 'block';
-                
-                document.getElementById('editBtn').style.display = 'none';
-                document.getElementById('saveBtn').style.display = 'block';
-                document.getElementById('cancelBtn').style.display = 'block';
-            };
-
-            window.cancelEdit = function() {
-                document.getElementById('profileFullName').style.display = 'block';
-                document.getElementById('profileUsername').style.display = 'block';
-                document.getElementById('editFullName').style.display = 'none';
-                document.getElementById('editUsername').style.display = 'none';
-                
-                document.getElementById('editBtn').style.display = 'block';
-                document.getElementById('saveBtn').style.display = 'none';
-                document.getElementById('cancelBtn').style.display = 'none';
-                
-                // Reset inputs to original values
-                const u = Auth.getCurrentUser();
-                if (u) render(u);
-            };
-
-            window.saveProfile = async function() {
-                const btn = document.getElementById('saveBtn');
-                btn.disabled = true;
-                btn.textContent = 'Saving...';
-
-                try {
-                    const payload = {
-                        full_name: document.getElementById('editFullName').value.trim() || null,
-                        username: document.getElementById('editUsername').value.trim()
-                    };
-
-                    const updatedUser = await API.request("PATCH", "/auth/me", payload);
-                    if (updatedUser) {
-                        localStorage.setItem("user", JSON.stringify(updatedUser)); // Update local cache
-                        render(updatedUser);
-                        UI.showSuccess("Profile updated successfully!");
-                        cancelEdit();
-                    }
-                } catch (e) {
-                    // Error is shown by API.request
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = 'Save Changes';
-                }
-            };
-
-            window.changePassword = async function() {
-                const currentPassword = document.getElementById('currentPassword').value;
-                const newPassword = document.getElementById('newPassword').value;
-
-                if (!currentPassword || !newPassword) {
-                    UI.showError("Both current and new passwords are required.");
-                    return;
-                }
-
-                const btn = document.getElementById('changePwdBtn');
-                btn.disabled = true;
-                btn.textContent = 'Updating...';
-
-                try {
-                    const payload = {
-                        current_password: currentPassword,
-                        new_password: newPassword
-                    };
-
-                    await API.request("PATCH", "/auth/me/password", payload);
-                    UI.showSuccess("Password successfully updated!");
-                    
-                    // clear fields
-                    document.getElementById('currentPassword').value = '';
-                    document.getElementById('newPassword').value = '';
-                } catch (e) {
-                    // UI.showError handles visual
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = 'Update Password';
-                }
-            };
-        });
-    </script>
+    window.toggleEdit=function(){
+      ['profileFullName','profileUsername'].forEach(id=>document.getElementById(id).style.display='none');
+      ['editFullName','editUsername'].forEach(id=>document.getElementById(id).style.display='inline-block');
+      document.getElementById('editBtn').style.display='none';
+      document.getElementById('saveBtn').style.display='inline-flex';
+      document.getElementById('cancelBtn').style.display='inline-flex';
+    };
+    window.cancelEdit=function(){
+      ['profileFullName','profileUsername'].forEach(id=>document.getElementById(id).style.display='inline');
+      ['editFullName','editUsername'].forEach(id=>document.getElementById(id).style.display='none');
+      document.getElementById('editBtn').style.display='inline-flex';
+      document.getElementById('saveBtn').style.display='none';
+      document.getElementById('cancelBtn').style.display='none';
+      const u=Auth.getCurrentUser();if(u)render(u);
+    };
+    window.saveProfile=async function(){const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='Saving...';
+      try{const updated=await API.request("PATCH","/auth/me",{full_name:document.getElementById('editFullName').value.trim()||null,username:document.getElementById('editUsername').value.trim()});
+        if(updated){localStorage.setItem("user",JSON.stringify(updated));render(updated);UI.showSuccess("Profile updated!");cancelEdit();}
+      }catch(e){}finally{btn.disabled=false;btn.textContent='Save Changes';}};
+    window.changePassword=async function(){
+      const cur=document.getElementById('currentPassword').value;
+      const np=document.getElementById('newPassword').value;
+      if(!cur||!np){UI.showError("Both fields are required.");return;}
+      const btn=document.getElementById('changePwdBtn');btn.disabled=true;btn.textContent='Updating...';
+      try{await API.request("PATCH","/auth/me/password",{current_password:cur,new_password:np});
+        UI.showSuccess("Password updated!");document.getElementById('currentPassword').value='';document.getElementById('newPassword').value='';
+      }catch(e){}finally{btn.disabled=false;btn.textContent='Update Password';}};
+  });
+</script>
 </body>
-
 </html>

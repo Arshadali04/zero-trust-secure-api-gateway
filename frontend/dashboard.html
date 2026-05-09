@@ -1,261 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Zero Trust Gateway</title>
-    <link rel="stylesheet" href="css/dashboard.css?v=2">
-    <script>
-        (function () {
-            try {
-                var token = localStorage.getItem('token');
-                if (!token) { window.location.replace('login.html'); return; }
-                var p = token.split('.');
-                if (p.length !== 3) { localStorage.removeItem('token'); window.location.replace('login.html'); return; }
-                var b64 = p[1].replace(/-/g, '+').replace(/_/g, '/');
-                var padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-                var payload = JSON.parse(atob(padded));
-                if (payload.exp && Date.now() >= payload.exp * 1000) {
-                    localStorage.removeItem('token');
-                    window.location.replace('login.html');
-                }
-            } catch(e) { window.location.replace('login.html'); }
-        })();
-    </script>
-    <style>
-        /* MFA banner */
-        .mfa-banner {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            color: white;
-            padding: 1rem 2rem;
-            border-radius: 0.75rem;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-            flex-wrap: wrap;
-            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
-            animation: slideDown 0.4s ease;
-        }
-        @keyframes slideDown {
-            from { transform: translateY(-20px); opacity: 0; }
-            to   { transform: translateY(0);     opacity: 1; }
-        }
-        .mfa-banner p { margin: 0; font-weight: 600; font-size: 1rem; }
-        .mfa-banner a {
-            background: white;
-            color: #d97706;
-            padding: 0.5rem 1.25rem;
-            border-radius: 0.5rem;
-            text-decoration: none;
-            font-weight: 700;
-            white-space: nowrap;
-            transition: all 0.2s;
-        }
-        .mfa-banner a:hover { background: #fef3c7; }
-
-    </style>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Dashboard — Zero Trust Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/dashboard.css?v=4">
+  <script>
+    (function(){try{var t=localStorage.getItem('token');if(!t){window.location.replace('login.html');return;}
+    var p=t.split('.');if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
+    var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b+'==='.slice(0,(4-b.length%4)%4);
+    var pl=JSON.parse(atob(pad));if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
+    }catch(e){window.location.replace('login.html');}})();
+  </script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo"><span class="logo-icon">🔐</span> Zero Trust Gateway</div>
-            <ul class="nav-menu">
-                <li><a href="dashboard.html" class="nav-link active">Dashboard</a></li>
-                <li><a href="profile.html" class="nav-link">Profile</a></li>
-                <li id="navAdminItem" style="display:none;"><a href="admin.html" class="nav-link" style="color:#ef4444;font-weight:700;">Admin Panel</a></li>
-                <li class="nav-user">
-                    <span id="userName">User</span>
-                    <button class="nav-link btn-logout" onclick="Auth.logout()">Logout</button>
-                </li>
-            </ul>
-        </div>
-    </nav>
 
-    <div class="dashboard-container">
-        <header class="dashboard-header">
-            <h1>Welcome, <span id="userFullName">User</span>! 👋</h1>
-            <p>Here's your security dashboard overview</p>
-        </header>
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <div class="sidebar-brand-name">Zero<span>Trust</span></div>
+  </div>
 
-        <!-- MFA warning banner (hidden by default, shown if MFA is off) -->
-        <div id="mfaBanner" class="mfa-banner" style="display:none;">
-            <p>🔑 Your account has <strong>no MFA enabled</strong> — enable Two-Factor Authentication to secure your account.</p>
-            <a href="profile.html#mfa">Enable MFA →</a>
-        </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a href="dashboard.html" class="nav-item active">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a href="profile.html" class="nav-item">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Profile
+    </a>
+    <div class="nav-section-label" id="adminSectionLabel" style="display:none;">Admin</div>
+    <a href="admin.html" class="nav-item" id="navAdminItem" style="display:none;">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 008.6 15a1.65 1.65 0 00-1.82-.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 10a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0015 8.6a1.65 1.65 0 001.82.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 15z"/></svg>
+      Admin Panel
+    </a>
+    <div class="nav-section-label">Account</div>
+    <button class="nav-item danger" onclick="Auth.logout()">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Logout
+    </button>
+  </nav>
 
-        <!-- Main stats grid -->
-        <div class="dashboard-grid">
-            <div class="dashboard-card">
-                <div class="card-icon">📊</div>
-                <h3>API Status</h3>
-                <p class="card-stat" id="apiStatus">Checking...</p>
-            </div>
-            <div class="dashboard-card">
-                <div class="card-icon">🔐</div>
-                <h3>Authentication</h3>
-                <p class="card-stat">Active ✅</p>
-            </div>
-            <div class="dashboard-card">
-                <div class="card-icon">👤</div>
-                <h3>Account Role</h3>
-                <p class="card-stat" id="userRole">user</p>
-            </div>
-            <div class="dashboard-card">
-                <div class="card-icon">🔑</div>
-                <h3>MFA Status</h3>
-                <p class="card-stat" id="mfaStatusCard">Checking...</p>
-            </div>
-        </div>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name" id="sidebarName">Loading...</div>
+        <div class="sidebar-user-role" id="sidebarRole">user</div>
+      </div>
+    </div>
+  </div>
+</aside>
 
-        <!-- Security Status section -->
-        <section class="dashboard-section" style="margin-bottom:2rem;">
-            <h2>🛡️ Security Status</h2>
-            <div class="security-grid">
-                <div class="security-card blue">
-                    <h4>Risk Score</h4>
-                    <div class="sc-value" id="riskScore">—</div>
-                    <div class="sc-sub" id="riskAction">Loading last request score...</div>
-                </div>
-                <div class="security-card green">
-                    <h4>WAF Protection</h4>
-                    <div class="sc-value">🛡️ Active</div>
-                    <div class="sc-sub">SQLi · XSS · Path Traversal · CMDi</div>
-                </div>
-                <div class="security-card blue">
-                    <h4>Rate Limiter</h4>
-                    <div class="sc-value">⚡ Active</div>
-                    <div class="sc-sub">300 req/min general · 10 req/min auth</div>
-                </div>
-                <div class="security-card" id="mfaSecCard" style="border-left-color:#f59e0b;">
-                    <h4>Two-Factor Auth</h4>
-                    <div class="sc-value" id="mfaSecValue">Checking...</div>
-                    <div class="sc-sub" id="mfaSecSub">—</div>
-                </div>
-            </div>
-        </section>
+<!-- ── Main ── -->
+<div class="main-content">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Security Dashboard</div>
+      <div class="topbar-meta">Real-time system overview</div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-dot"><div class="dot"></div>System Operational</div>
+    </div>
+  </div>
 
-        <!-- Quick Actions -->
-        <section class="dashboard-section">
-            <h2>Quick Actions</h2>
-            <div class="actions-grid">
-                <a href="profile.html" class="action-btn">
-                    <span class="action-icon">👤</span><span>View Profile</span>
-                </a>
-                <a href="profile.html" class="action-btn" id="mfaActionBtn">
-                    <span class="action-icon">🔑</span><span id="mfaActionLabel">Setup MFA</span>
-                </a>
-                <a id="adminActionBtn" href="admin.html" class="action-btn" style="display:none;">
-                    <span class="action-icon">🛡️</span><span>Admin Panel</span>
-                </a>
-                <button class="action-btn" onclick="Auth.logout()">
-                    <span class="action-icon">🚪</span><span>Logout</span>
-                </button>
-            </div>
-        </section>
+  <div class="page-body">
+
+    <!-- MFA Alert -->
+    <div id="mfaBanner" class="alert-banner" style="display:none;">
+      <p>⚠ Two-factor authentication is not enabled. Enable MFA to secure your account.</p>
+      <a href="profile.html#mfa">Enable MFA →</a>
     </div>
 
-    <div id="notification" class="notification"></div>
+    <!-- Stat cards -->
+    <div class="page-section">
+      <div class="section-header"><span class="section-title">System Status</span></div>
+      <div class="grid-4">
+        <div class="stat-card">
+          <div class="stat-icon cyan">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <div class="stat-label">API Health</div>
+          <div class="stat-value" id="apiStatus">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon emerald">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="stat-label">Authentication</div>
+          <div class="stat-value" style="color:var(--emerald);">Active</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon violet">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="stat-label">Account Role</div>
+          <div class="stat-value" id="userRoleCard">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2" ry="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+          </div>
+          <div class="stat-label">MFA Status</div>
+          <div class="stat-value" id="mfaStatusCard">—</div>
+        </div>
+      </div>
+    </div>
 
-    <script src="js/api.js?v=4"></script>
-    <script src="js/ui.js?v=4"></script>
-    <script src="js/auth.js?v=4"></script>
-    <script>
-        window.addEventListener("load", function () {
-            // Clean ?t= from URL bar
-            if (window.location.search) {
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
+    <!-- Security posture -->
+    <div class="page-section">
+      <div class="section-header"><span class="section-title">Security Posture</span></div>
+      <div class="grid-4">
+        <div class="sec-card active-cyan">
+          <h4>Risk Score</h4>
+          <div class="sc-value" id="riskScore">—</div>
+          <div class="sc-sub" id="riskAction">Fetching score...</div>
+        </div>
+        <div class="sec-card active-emerald">
+          <h4>WAF Protection</h4>
+          <div class="sc-value" style="color:var(--emerald);">Active</div>
+          <div class="sc-sub">SQLi · XSS · Path Traversal · CMDi</div>
+        </div>
+        <div class="sec-card active-cyan">
+          <h4>Rate Limiter</h4>
+          <div class="sc-value" style="color:var(--cyan);">Active</div>
+          <div class="sc-sub">300 req/min · 10 req/min auth</div>
+        </div>
+        <div class="sec-card" id="mfaSecCard">
+          <h4>Two-Factor Auth</h4>
+          <div class="sc-value" id="mfaSecValue">Checking...</div>
+          <div class="sc-sub" id="mfaSecSub">—</div>
+        </div>
+      </div>
+    </div>
 
-            // ── Render from cache immediately ─────────────────────────────────
-            var user = Auth.getCurrentUser();
-            if (!user) {
-                var token = Auth.getToken();
-                if (!token) { Auth.logout(); return; }
-                try {
-                    var p = token.split('.');
-                    var b64 = p[1].replace(/-/g, '+').replace(/_/g, '/');
-                    var padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-                    var pl = JSON.parse(atob(padded));
-                    user = { email: pl.sub || '', username: (pl.sub || 'User').split('@')[0], full_name: '', role: pl.role || 'user' };
-                    localStorage.setItem('user', JSON.stringify(user));
-                } catch(e) {
-                    user = { email: '', username: 'User', full_name: '', role: 'user' };
-                }
-            }
-            renderUser(user);
+    <!-- Quick actions -->
+    <div class="page-section">
+      <div class="section-header"><span class="section-title">Quick Actions</span></div>
+      <div class="action-grid">
+        <a href="profile.html" class="action-tile">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          View Profile
+        </a>
+        <a href="profile.html" class="action-tile" id="mfaActionBtn">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+          <span id="mfaActionLabel">Setup MFA</span>
+        </a>
+        <a id="adminActionBtn" href="admin.html" class="action-tile" style="display:none;">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 008.6 15a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06"/></svg>
+          Admin Panel
+        </a>
+        <button class="action-tile" onclick="Auth.logout()">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
-            // ── Background: get fresh user data ──────────────────────────────
-            API.request("GET", "/auth/me").then(function(fresh) {
-                if (!fresh) return;
-                localStorage.setItem("user", JSON.stringify(fresh));
-                renderUser(fresh);
-            }).catch(function() {});
+<div id="notification" class="notification"></div>
 
-            // ── Health check ─────────────────────────────────────────────────
-            API.getHealth().then(function(h) {
-                document.getElementById("apiStatus").textContent =
-                    (h && h.status === "healthy") ? "✅ Healthy" : "⚠️ Degraded";
-            }).catch(function() {
-                document.getElementById("apiStatus").textContent = "❌ Offline";
-            });
-
-            // ── MFA status ───────────────────────────────────────────────────
-            API.request("GET", "/auth/mfa/status").then(function(s) {
-                var enabled = s && s.mfa_enabled;
-                // Card
-                document.getElementById("mfaStatusCard").textContent = enabled ? "✅ Enabled" : "❌ Disabled";
-                // Security section card
-                var secCard = document.getElementById("mfaSecCard");
-                document.getElementById("mfaSecValue").textContent = enabled ? "✅ Enabled" : "❌ Disabled";
-                document.getElementById("mfaSecSub").textContent  = enabled
-                    ? "TOTP 2FA is protecting this account"
-                    : "Enable MFA on your Profile page";
-                secCard.className = "security-card " + (enabled ? "green" : "red");
-                // Banner
-                if (!enabled) {
-                    document.getElementById("mfaBanner").style.display = "flex";
-                }
-                // Action button label
-                document.getElementById("mfaActionLabel").textContent = enabled ? "Manage MFA" : "Setup MFA";
-            }).catch(function() {
-                document.getElementById("mfaStatusCard").textContent = "—";
-            });
-
-            // ── Risk score: fetch a lightweight risk-scored endpoint and read headers ─
-            fetch("http://127.0.0.1:8000/auth/me", {
-                headers: { "Authorization": "Bearer " + Auth.getToken() }
-            }).then(function(r) {
-                var score = r.headers.get("X-Risk-Score");
-                var action = r.headers.get("X-Risk-Action");
-                if (score !== null) {
-                    var s = parseFloat(score);
-                    var cls = s < 0.4 ? "risk-low" : s < 0.65 ? "risk-medium" : s < 0.8 ? "risk-high" : "risk-critical";
-                    var label = s < 0.4 ? "Low" : s < 0.65 ? "Medium" : s < 0.8 ? "High" : "Critical";
-                    document.getElementById("riskScore").innerHTML =
-                        '<span class="risk-pill ' + cls + '">' + label + ' (' + s.toFixed(3) + ')</span>';
-                    document.getElementById("riskAction").textContent = "Action: " + (action || "allow");
-                } else {
-                    document.getElementById("riskScore").textContent = "N/A";
-                    document.getElementById("riskAction").textContent = "Risk scoring active";
-                }
-            }).catch(function() {
-                document.getElementById("riskScore").textContent = "—";
-            });
-        });
-
-        function renderUser(u) {
-            document.getElementById("userName").textContent = u.username || 'User';
-            document.getElementById("userFullName").textContent = u.full_name || u.username || 'User';
-            document.getElementById("userRole").textContent = u.role || 'user';
-            if (u.role === 'admin') {
-                var n = document.getElementById("navAdminItem");
-                if (n) n.style.display = "block";
-                var a = document.getElementById("adminActionBtn");
-                if (a) a.style.display = "flex";
-            }
-        }
-    </script>
+<script src="js/api.js?v=4"></script>
+<script src="js/ui.js?v=4"></script>
+<script src="js/auth.js?v=4"></script>
+<script>
+  window.addEventListener("load",function(){
+    if(window.location.search)window.history.replaceState({},'',window.location.pathname);
+    var user=Auth.getCurrentUser();
+    if(!user){var tok=Auth.getToken();if(!tok){Auth.logout();return;}
+      try{var p=tok.split('.');var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b+'==='.slice(0,(4-b.length%4)%4);
+      var pl=JSON.parse(atob(pad));user={email:pl.sub||'',username:(pl.sub||'User').split('@')[0],full_name:'',role:pl.role||'user'};
+      localStorage.setItem('user',JSON.stringify(user));}catch(e){user={username:'User',role:'user'};}}
+    renderUser(user);
+    API.request("GET","/auth/me").then(function(f){if(!f)return;localStorage.setItem("user",JSON.stringify(f));renderUser(f);}).catch(function(){});
+    API.getHealth().then(function(h){
+      var ok=h&&h.status==="healthy";
+      document.getElementById("apiStatus").textContent=ok?"Healthy":"Degraded";
+      document.getElementById("apiStatus").style.color=ok?"var(--emerald)":"var(--amber)";
+    }).catch(function(){document.getElementById("apiStatus").textContent="Offline";document.getElementById("apiStatus").style.color="var(--rose)";});
+    API.request("GET","/auth/mfa/status").then(function(s){
+      var en=s&&s.mfa_enabled;
+      document.getElementById("mfaStatusCard").textContent=en?"Enabled":"Disabled";
+      document.getElementById("mfaStatusCard").style.color=en?"var(--emerald)":"var(--rose)";
+      document.getElementById("mfaSecValue").textContent=en?"Enabled":"Disabled";
+      document.getElementById("mfaSecSub").textContent=en?"TOTP 2FA protecting this account":"Enable MFA on your Profile page";
+      document.getElementById("mfaSecCard").className="sec-card "+(en?"active-emerald":"active-rose");
+      if(!en)document.getElementById("mfaBanner").style.display="flex";
+      document.getElementById("mfaActionLabel").textContent=en?"Manage MFA":"Setup MFA";
+    }).catch(function(){});
+    fetch("http://127.0.0.1:8000/auth/me",{headers:{"Authorization":"Bearer "+Auth.getToken()}}).then(function(r){
+      var score=r.headers.get("X-Risk-Score");var action=r.headers.get("X-Risk-Action");
+      if(score!==null){var s=parseFloat(score);
+        var cls=s<0.4?"risk-low":s<0.65?"risk-medium":s<0.8?"risk-high":"risk-critical";
+        var lbl=s<0.4?"Low":s<0.65?"Medium":s<0.8?"High":"Critical";
+        document.getElementById("riskScore").innerHTML='<span class="risk-pill '+cls+'">'+lbl+' ('+s.toFixed(3)+')</span>';
+        document.getElementById("riskAction").textContent="Action: "+(action||"allow");
+      }else{document.getElementById("riskScore").textContent="N/A";}
+    }).catch(function(){});
+  });
+  function renderUser(u){
+    document.getElementById("sidebarName").textContent=u.username||'User';
+    document.getElementById("sidebarAvatar").textContent=(u.username||'U')[0].toUpperCase();
+    document.getElementById("sidebarRole").textContent=u.role||'user';
+    document.getElementById("userRoleCard").textContent=(u.role||'user').toUpperCase();
+    if(u.role==='admin'){
+      var n=document.getElementById("navAdminItem");if(n)n.style.display="flex";
+      var l=document.getElementById("adminSectionLabel");if(l)l.style.display="block";
+      var a=document.getElementById("adminActionBtn");if(a)a.style.display="flex";
+    }
+  }
+</script>
 </body>
 </html>

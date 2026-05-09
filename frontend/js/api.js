@@ -1,4 +1,4 @@
-﻿const API = {
+const API = {
   BASE_URL: "http://127.0.0.1:8000",
 
   async request(method, endpoint, body = null) {
@@ -39,7 +39,13 @@
     }
 
     if (!response.ok) {
-      // Do NOT redirect here. Let pages decide.
+      // 401 = token expired or invalid — clear session and force re-login.
+      if (response.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.replace("login.html");
+        return;
+      }
       throw { status: response.status, data };
     }
 

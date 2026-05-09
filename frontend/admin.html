@@ -1,633 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Panel - Zero Trust Gateway</title>
-    <meta name="description" content="Admin panel for managing users and audit logs in the Zero Trust API Gateway." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="css/dashboard.css?v=2" />
-
-    <!-- Sync guard: redirect to login if no valid token; redirect to dashboard if not admin -->
-    <script>
-        (function () {
-            try {
-                var token = localStorage.getItem('token');
-                if (!token) { window.location.replace('login.html'); return; }
-                var p = token.split('.');
-                if (p.length !== 3) { localStorage.removeItem('token'); window.location.replace('login.html'); return; }
-                var b64 = p[1].replace(/-/g, '+').replace(/_/g, '/');
-                var padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-                var payload = JSON.parse(atob(padded));
-                if (payload.exp && Date.now() >= payload.exp * 1000) {
-                    localStorage.removeItem('token');
-                    window.location.replace('login.html');
-                }
-            } catch (e) { window.location.replace('login.html'); }
-        })();
-    </script>
-
-    <style>
-        body { font-family: 'Inter', -apple-system, sans-serif; }
-
-        /* ── Admin Header ─────────────────────────────────────────── */
-        .admin-header {
-            text-align: center;
-            padding: 2.5rem 0 1.5rem;
-        }
-        .admin-header h1 {
-            font-size: 2.4rem;
-            font-weight: 800;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: .6rem;
-            margin-bottom: .4rem;
-        }
-        .admin-header p { color: rgba(255,255,255,.85); font-size: 1rem; }
-
-        /* ── Stats row ───────────────────────────────────────────── */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 1.25rem;
-            margin-bottom: 2rem;
-        }
-        .stat-card {
-            background: rgba(255,255,255,.15);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,.25);
-            border-radius: 1rem;
-            padding: 1.4rem 1.6rem;
-            text-align: center;
-            transition: transform .2s;
-        }
-        .stat-card:hover { transform: translateY(-4px); }
-        .stat-card .stat-num {
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: #fff;
-        }
-        .stat-card .stat-label {
-            font-size: .85rem;
-            color: rgba(255,255,255,.8);
-            margin-top: .25rem;
-            font-weight: 500;
-            letter-spacing: .03em;
-            text-transform: uppercase;
-        }
-
-        /* ── Tab Panel ───────────────────────────────────────────── */
-        .tab-panel {
-            background: #fff;
-            border-radius: 1.25rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,.15);
-            overflow: hidden;
-            margin-bottom: 2.5rem;
-        }
-        .tab-bar {
-            display: flex;
-            border-bottom: 2px solid #f3f4f6;
-            background: #fafafa;
-        }
-        .tab-btn {
-            flex: 1;
-            padding: 1.1rem;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            font-family: inherit;
-            color: #6b7280;
-            transition: all .25s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: .5rem;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
-        }
-        .tab-btn:hover { color: #6366f1; background: #f0f0ff; }
-        .tab-btn.active { color: #6366f1; border-bottom-color: #6366f1; background: #fff; }
-
-        .tab-content { display: none; padding: 1.75rem; }
-        .tab-content.active { display: block; }
-
-        /* ── Toolbar ─────────────────────────────────────────────── */
-        .tab-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.25rem;
-            flex-wrap: wrap;
-            gap: .75rem;
-        }
-        .tab-toolbar h2 {
-            font-size: 1.25rem;
-            color: #1f2937;
-            font-weight: 700;
-        }
-        .toolbar-actions { display: flex; gap: .6rem; flex-wrap: wrap; }
-
-        /* ── Search input ────────────────────────────────────────── */
-        .search-input {
-            padding: .55rem 1rem;
-            border: 1.5px solid #e5e7eb;
-            border-radius: .6rem;
-            font-size: .9rem;
-            font-family: inherit;
-            transition: border-color .2s;
-            width: 220px;
-        }
-        .search-input:focus { outline: none; border-color: #6366f1; }
-
-        /* ── Table ───────────────────────────────────────────────── */
-        .data-table-wrap { overflow-x: auto; border-radius: .75rem; border: 1px solid #f3f4f6; }
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: .92rem;
-        }
-        .data-table thead { background: #f8f9ff; }
-        .data-table th {
-            padding: .85rem 1rem;
-            text-align: left;
-            font-weight: 700;
-            color: #374151;
-            font-size: .8rem;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            white-space: nowrap;
-        }
-        .data-table td {
-            padding: .9rem 1rem;
-            border-top: 1px solid #f3f4f6;
-            color: #374151;
-            vertical-align: middle;
-        }
-        .data-table tbody tr { transition: background .15s; }
-        .data-table tbody tr:hover { background: #fafbff; }
-
-        /* ── Badges ──────────────────────────────────────────────── */
-        .badge {
-            display: inline-block;
-            padding: .25em .75em;
-            border-radius: 99px;
-            font-size: .78rem;
-            font-weight: 700;
-            letter-spacing: .03em;
-        }
-        .badge-admin  { background: #ede9fe; color: #7c3aed; }
-        .badge-user   { background: #e0f2fe; color: #0369a1; }
-        .badge-success{ background: #d1fae5; color: #065f46; }
-        .badge-error  { background: #fee2e2; color: #991b1b; }
-        .badge-method { background: #f3f4f6; color: #374151; font-family: monospace; }
-        .badge-2xx    { background: #d1fae5; color: #065f46; }
-        .badge-4xx    { background: #fee2e2; color: #991b1b; }
-        .badge-5xx    { background: #fef3c7; color: #92400e; }
-        .badge-ratelimit { background: #fde68a; color: #78350f; }
-        .badge-proxy  { background: #dbeafe; color: #1e40af; }
-
-        /* ── Small buttons ───────────────────────────────────────── */
-        .btn-small {
-            padding: .35rem .9rem;
-            font-size: .8rem;
-            border-radius: .45rem;
-        }
-        .admin-actions { display: flex; gap: .45rem; flex-wrap: wrap; }
-
-        /* ── Empty / loading states ──────────────────────────────── */
-        .empty-state {
-            text-align: center;
-            padding: 3rem 1rem;
-            color: #9ca3af;
-        }
-        .empty-state .empty-icon { font-size: 3rem; margin-bottom: .75rem; }
-
-        /* ── Log path cell ───────────────────────────────────────── */
-        .log-path {
-            font-family: monospace;
-            font-size: .85rem;
-            max-width: 220px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        /* ── Notification ────────────────────────────────────────── */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 1rem 1.5rem;
-            border-radius: .6rem;
-            display: none;
-            z-index: 1000;
-            font-weight: 600;
-            animation: slideIn .3s ease;
-            box-shadow: 0 8px 24px rgba(0,0,0,.18);
-        }
-        .notification.show { display: block; }
-        .notification.success { background: #10b981; color: #fff; }
-        .notification.error   { background: #ef4444; color: #fff; }
-        @keyframes slideIn {
-            from { transform: translateX(420px); opacity: 0; }
-            to   { transform: translateX(0);     opacity: 1; }
-        }
-
-        /* ── Responsive ──────────────────────────────────────────── */
-        @media (max-width: 768px) {
-            .dashboard-container { padding: 1rem; }
-            .admin-header h1 { font-size: 1.75rem; }
-            .tab-btn { font-size: .85rem; padding: .85rem .5rem; }
-            .search-input { width: 100%; }
-        }
-    </style>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Admin Panel — Zero Trust Gateway</title>
+  <meta name="description" content="Manage users and audit logs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/dashboard.css?v=4">
+  <script>
+    (function(){try{var t=localStorage.getItem('token');if(!t){window.location.replace('login.html');return;}
+    var p=t.split('.');if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
+    var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b+'==='.slice(0,(4-b.length%4)%4);
+    var pl=JSON.parse(atob(pad));if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
+    }catch(e){window.location.replace('login.html');}})();
+  </script>
 </head>
-
 <body>
-    <!-- ── Navbar ──────────────────────────────────────────────────── -->
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo"><span class="logo-icon">🔐</span> Zero Trust Gateway</div>
-            <ul class="nav-menu">
-                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-                <li><a href="profile.html" class="nav-link">Profile</a></li>
-                <li><a href="admin.html" class="nav-link active" style="color:#6366f1;font-weight:700;">Admin Panel</a></li>
-                <li class="nav-user">
-                    <span id="userName">Admin</span>
-                    <button class="nav-link btn-logout" onclick="Auth.logout()">Logout</button>
-                </li>
-            </ul>
-        </div>
-    </nav>
 
-    <!-- ── Page Body ───────────────────────────────────────────────── -->
-    <div class="dashboard-container">
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <div class="sidebar-brand-name">Zero<span>Trust</span></div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a href="dashboard.html" class="nav-item"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+    <a href="profile.html" class="nav-item"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</a>
+    <div class="nav-section-label">Admin</div>
+    <a href="admin.html" class="nav-item active"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 008.6 15a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 15z"/></svg>Admin Panel</a>
+    <div class="nav-section-label">Account</div>
+    <button class="nav-item danger" onclick="Auth.logout()"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Logout</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar" id="sidebarAvatar">A</div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name" id="userName">Admin</div>
+        <div class="sidebar-user-role">administrator</div>
+      </div>
+    </div>
+  </div>
+</aside>
 
-        <!-- Header -->
-        <div class="admin-header">
-            <h1>🛡️ Admin Panel</h1>
-            <p>Manage users, roles, and review system audit logs</p>
-        </div>
+<div class="main-content">
+  <div class="topbar">
+    <div><div class="topbar-title">Admin Panel</div><div class="topbar-meta">Manage users · roles · audit logs</div></div>
+    <div class="topbar-right"><div class="status-dot"><div class="dot"></div>Admin Access</div></div>
+  </div>
 
-        <!-- Stats -->
-        <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-num" id="statTotalUsers">—</div>
-                <div class="stat-label">Total Users</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-num" id="statAdmins">—</div>
-                <div class="stat-label">Admins</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-num" id="statActive">—</div>
-                <div class="stat-label">Active Accounts</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-num" id="statLogs">—</div>
-                <div class="stat-label">Audit Log Entries</div>
-            </div>
-        </div>
-
-        <!-- Tab Panel -->
-        <div class="tab-panel">
-            <div class="tab-bar">
-                <button id="tabBtnUsers" class="tab-btn active" onclick="switchTab('users', this)">
-                    👥 Users
-                </button>
-                <button id="tabBtnLogs" class="tab-btn" onclick="switchTab('logs', this)">
-                    📋 Audit Logs
-                </button>
-            </div>
-
-            <!-- Users Tab -->
-            <div id="usersTab" class="tab-content active">
-                <div class="tab-toolbar">
-                    <h2>Registered Users</h2>
-                    <div class="toolbar-actions">
-                        <input id="userSearch" class="search-input" type="search" placeholder="🔍  Search users…" oninput="filterUsers()" />
-                        <button class="btn btn-secondary btn-small" onclick="loadUsers()">↻ Refresh</button>
-                    </div>
-                </div>
-                <div class="data-table-wrap">
-                    <table class="data-table" id="usersTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Last Login</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">⏳</div>Loading users…</div></td></tr>
-                        </tbody>
-
-                    </table>
-                </div>
-            </div>
-
-            <!-- Audit Logs Tab -->
-            <div id="logsTab" class="tab-content">
-                <div class="tab-toolbar">
-                    <h2>Audit Logs</h2>
-                    <div class="toolbar-actions">
-                        <input id="logSearch" class="search-input" type="search" placeholder="🔍  Filter logs…" oninput="filterLogs()" />
-                        <button class="btn btn-secondary btn-small" onclick="loadLogs()">↻ Refresh</button>
-                    </div>
-                </div>
-                <div class="data-table-wrap">
-                    <table class="data-table" id="logsTable">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Status</th>
-                                <th>Path</th>
-                                <th>Method</th>
-                                <th>Code</th>
-                                <th>IP Address</th>
-                                <th>User / Elapsed</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logsTableBody">
-                            <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">⏳</div>Loading logs…</div></td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+  <div class="page-body">
+    <!-- Stats -->
+    <div class="admin-stats">
+      <div class="stat-card">
+        <div class="stat-icon cyan"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value" id="statTotalUsers">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon violet"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4"/></svg></div>
+        <div class="stat-label">Admins</div>
+        <div class="stat-value" id="statAdmins">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon emerald"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="stat-label">Active Accounts</div>
+        <div class="stat-value" id="statActive">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <div class="stat-label">Audit Log Entries</div>
+        <div class="stat-value" id="statLogs">—</div>
+      </div>
     </div>
 
-    <div id="notification" class="notification"></div>
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab-bar">
+        <button id="tabBtnUsers" class="tab-btn active" onclick="switchTab('users',this)">Users</button>
+        <button id="tabBtnLogs" class="tab-btn" onclick="switchTab('logs',this)">Audit Logs</button>
+      </div>
 
-    <script src="js/api.js?v=5"></script>
-    <script src="js/ui.js?v=5"></script>
-    <script src="js/auth.js?v=5"></script>
+      <div id="usersTab" class="tab-content active">
+        <div class="table-header">
+          <h3>Registered Users</h3>
+          <div class="table-actions">
+            <input id="userSearch" class="search-input" type="search" placeholder="Search users…" oninput="filterUsers()">
+            <button class="btn btn-secondary btn-sm" onclick="loadUsers()">Refresh</button>
+          </div>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+            <tbody id="usersTableBody">
+              <tr><td colspan="7"><div class="empty-state"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><p>Loading users…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-    <script>
-        // ── Cached data for client-side filtering ─────────────────────────────
-        let _allUsers = [];
-        let _allLogs  = [];
+      <div id="logsTab" class="tab-content">
+        <div class="table-header">
+          <h3>Audit Logs</h3>
+          <div class="table-actions">
+            <input id="logSearch" class="search-input" type="search" placeholder="Filter logs…" oninput="filterLogs()">
+            <button class="btn btn-secondary btn-sm" onclick="loadLogs()">Refresh</button>
+          </div>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Timestamp</th><th>Status</th><th>Path</th><th>Method</th><th>Code</th><th>IP Address</th><th>User / Elapsed</th></tr></thead>
+            <tbody id="logsTableBody">
+              <tr><td colspan="7"><div class="empty-state"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><p>Loading logs…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-        // ── Tab switching ─────────────────────────────────────────────────────
-        function switchTab(tabName, btn) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(tabName + 'Tab').classList.add('active');
-            if (tabName === 'users') loadUsers();
-            if (tabName === 'logs')  loadLogs();
-        }
+<div id="notification" class="notification"></div>
+<script src="js/api.js?v=5"></script>
+<script src="js/ui.js?v=5"></script>
+<script src="js/auth.js?v=5"></script>
+<script>
+  let _allUsers=[],_allLogs=[];
+  function switchTab(name,btn){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById(name+'Tab').classList.add('active');if(name==='users')loadUsers();if(name==='logs')loadLogs();}
+  function parseUTC(s){if(!s)return null;if(/[Z+]/.test(s.slice(-6)))return new Date(s);return new Date(s+'Z');}
+  function formatDate(d){if(!d)return'—';return parseUTC(d).toLocaleString();}
+  function statusBadgeClass(c){if(!c)return'badge-method';if(c<300)return'badge-2xx';if(c<500)return'badge-4xx';return'badge-5xx';}
+  function escHtml(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function emptyRow(cols,msg){return`<tr><td colspan="${cols}"><div class="empty-state"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>${msg}</p></div></td></tr>`;}
 
-        // ── Helpers ───────────────────────────────────────────────────────────
-        /**
-         * Parse a UTC timestamp string from the DB (which has no 'Z' suffix)
-         * and return a JS Date in LOCAL time.
-         * Without the 'Z', new Date("2026-05-01T17:00:00") is treated as LOCAL
-         * in some browsers — appending 'Z' forces UTC interpretation.
-         */
-        function parseUTC(s) {
-            if (!s) return null;
-            // Already has timezone info (+/- or Z) — leave alone
-            if (/[Z+]/.test(s.slice(-6))) return new Date(s);
-            return new Date(s + 'Z');
-        }
+  async function loadUsers(){
+    const tbody=document.getElementById('usersTableBody');tbody.innerHTML=emptyRow(7,'Loading…');
+    try{_allUsers=await API.request('GET','/admin/users')||[];renderUsers(_allUsers);
+      document.getElementById('statTotalUsers').textContent=_allUsers.length;
+      document.getElementById('statAdmins').textContent=_allUsers.filter(u=>u.role==='admin').length;
+      document.getElementById('statActive').textContent=_allUsers.filter(u=>u.is_active).length;
+    }catch(e){tbody.innerHTML=emptyRow(7,'Failed to load users. Check admin permissions.');}}
 
-        function formatDate(d) {
-            if (!d) return '—';
-            return parseUTC(d).toLocaleString();
-        }
+  function renderUsers(users){
+    const tbody=document.getElementById('usersTableBody');if(!users||!users.length){tbody.innerHTML=emptyRow(7,'No users found.');return;}
+    const now=Date.now();const TWO_DAYS=2*24*60*60*1000;
+    tbody.innerHTML=users.map(u=>{
+      let status;
+      if(!u.is_active)status='<span class="badge badge-danger">Disabled</span>';
+      else if(!u.last_login)status='<span class="badge badge-warning">Never Logged In</span>';
+      else{const dormant=(now-parseUTC(u.last_login).getTime())>TWO_DAYS;status=dormant?'<span class="badge badge-warning">Dormant</span>':'<span class="badge badge-success">Active</span>';}
+      let lastLogin='—';
+      if(u.last_login){const d=parseUTC(u.last_login);const ms=now-d.getTime();const days=Math.floor(ms/86400000);const hrs=Math.floor(ms/3600000);lastLogin=`<span title="${d.toLocaleString()}">${days>0?days+'d ago':hrs>0?hrs+'h ago':'Just now'}</span>`;}
+      return`<tr>
+        <td style="color:var(--text-dim);font-size:.75rem;">${u.id}</td>
+        <td style="font-weight:600;">${escHtml(u.username)}</td>
+        <td style="color:var(--text-muted);">${escHtml(u.email)}</td>
+        <td><span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role.toUpperCase()}</span></td>
+        <td>${status}</td>
+        <td style="font-size:.78rem;">${lastLogin}</td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;">
+          ${u.role==='user'?`<button class="btn btn-secondary btn-sm" onclick="promoteUser(${u.id})">Make Admin</button>`:`<button class="btn btn-secondary btn-sm" onclick="demoteUser(${u.id})">Remove Admin</button>`}
+          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${escHtml(u.email)}')">Delete</button>
+        </td>
+      </tr>`;}).join('');}
 
-        function statusBadgeClass(code) {
-            if (!code) return 'badge-method';
-            if (code < 300) return 'badge-2xx';
-            if (code < 500) return 'badge-4xx';
-            return 'badge-5xx';
-        }
+  function filterUsers(){const q=document.getElementById('userSearch').value.toLowerCase();if(!q){renderUsers(_allUsers);return;}renderUsers(_allUsers.filter(u=>(u.username||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)||(u.role||'').toLowerCase().includes(q)));}
+  async function setRole(id,role){if(!confirm(`Change user #${id} role to "${role}"?`))return;try{await API.request('PATCH',`/admin/users/${id}/role?role=${role}`);UI.showSuccess(`User #${id} is now "${role}".`);await loadUsers();}catch(e){UI.showError('Failed to update role.');}}
+  function promoteUser(id){setRole(id,'admin');}function demoteUser(id){setRole(id,'user');}
+  async function deleteUser(id,email){if(!confirm(`Permanently delete "${email}" (#${id})?\n\nThis cannot be undone.`))return;try{await API.request('DELETE',`/admin/users/${id}`);UI.showSuccess(`User #${id} deleted.`);await loadUsers();}catch(e){UI.showError('Failed to delete user.');}}
 
-        function emptyRow(cols, msg) {
-            return `<tr><td colspan="${cols}">
-                <div class="empty-state">
-                    <div class="empty-icon">🔍</div>${msg}
-                </div></td></tr>`;
-        }
+  async function loadLogs(){const tbody=document.getElementById('logsTableBody');tbody.innerHTML=emptyRow(7,'Loading…');
+    try{_allLogs=await API.request('GET','/admin/audit-logs')||[];renderLogs(_allLogs);document.getElementById('statLogs').textContent=_allLogs.length;}catch(e){tbody.innerHTML=emptyRow(7,'Failed to load audit logs.');}}
 
-        // ── Users ─────────────────────────────────────────────────────────────
-        async function loadUsers() {
-            const tbody = document.getElementById('usersTableBody');
-            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr>`;
-            try {
-                _allUsers = await API.request('GET', '/admin/users') || [];
-                renderUsers(_allUsers);
-                // Update stats
-                document.getElementById('statTotalUsers').textContent = _allUsers.length;
-                document.getElementById('statAdmins').textContent = _allUsers.filter(u => u.role === 'admin').length;
-                document.getElementById('statActive').textContent = _allUsers.filter(u => u.is_active).length;
-            } catch (e) {
-                tbody.innerHTML = emptyRow(7, 'Failed to load users. Check your permissions.');
-            }
-        }
+  const EVENT_CFG={successful:{label:'Successful',cls:'badge-2xx'},unsuccessful:{label:'Unsuccessful',cls:'badge-4xx'},blocked:{label:'Blocked',cls:'badge-danger'},rate_limited:{label:'Rate Limited',cls:'badge-ratelimit'},server_error:{label:'Server Error',cls:'badge-5xx'},proxied:{label:'Proxied',cls:'badge-proxy'},redirect:{label:'Redirect',cls:'badge-method'}};
+  function eventBadge(et){const c=EVENT_CFG[et]||{label:et||'—',cls:'badge-method'};return`<span class="badge ${c.cls}">${c.label}</span>`;}
+  function renderLogs(logs){const tbody=document.getElementById('logsTableBody');if(!logs||!logs.length){tbody.innerHTML=emptyRow(7,'No audit logs found.');return;}
+    tbody.innerHTML=logs.map(l=>{let d={};try{d=JSON.parse(l.details||'{}');}catch(e){}const sc=l.status_code;const res=l.resource||l.action||'—';
+      return`<tr>
+        <td style="white-space:nowrap;font-size:.75rem;color:var(--text-muted);">${formatDate(l.timestamp)}</td>
+        <td>${eventBadge(l.event_type)}</td>
+        <td><div class="log-path" title="${escHtml(res)}">${escHtml(res)}</div></td>
+        <td><span class="badge badge-method">${escHtml(l.method||'—')}</span></td>
+        <td><span class="badge ${statusBadgeClass(sc)}">${sc||'—'}</span></td>
+        <td style="font-size:.75rem;">${escHtml(l.ip_address||'—')}</td>
+        <td style="font-size:.78rem;">${escHtml(d.user||'anonymous')}<br><span style="color:var(--text-dim);font-size:.72rem;">${d.elapsed_ms!=null?d.elapsed_ms+'ms':''}</span></td>
+      </tr>`;}).join('');}
+  function filterLogs(){const q=document.getElementById('logSearch').value.toLowerCase();if(!q){renderLogs(_allLogs);return;}renderLogs(_allLogs.filter(l=>(l.action||'').toLowerCase().includes(q)||(l.event_type||'').toLowerCase().includes(q)||(l.method||'').toLowerCase().includes(q)||(l.ip_address||'').toLowerCase().includes(q)||String(l.status_code||'').includes(q)));}
 
-        function renderUsers(users) {
-            const tbody = document.getElementById('usersTableBody');
-            if (!users || users.length === 0) {
-                tbody.innerHTML = emptyRow(7, 'No users found.');
-                return;
-            }
-            const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
-            const now = Date.now();
-
-            tbody.innerHTML = users.map(u => {
-                // Determine activity status
-                let statusBadge;
-                if (!u.is_active) {
-                    statusBadge = '<span class="badge badge-error">🚫 Disabled</span>';
-                } else if (!u.last_login) {
-                    statusBadge = '<span class="badge badge-ratelimit">⚠️ Never Logged In</span>';
-                } else {
-                    const lastLoginMs = parseUTC(u.last_login).getTime();
-                    const dormant = (now - lastLoginMs) > TWO_DAYS_MS;
-                    statusBadge = dormant
-                        ? '<span class="badge badge-ratelimit">💤 Dormant</span>'
-                        : '<span class="badge badge-success">✅ Active</span>';
-                }
-
-                // Last login display
-                let lastLoginStr = '—';
-                if (u.last_login) {
-                    const d = parseUTC(u.last_login);
-                    const diffMs   = now - d.getTime();
-                    const diffDays = Math.floor(diffMs / 86400000);
-                    const diffHrs  = Math.floor(diffMs / 3600000);
-                    const ago = diffDays > 0 ? diffDays + 'd ago' : diffHrs > 0 ? diffHrs + 'h ago' : 'Just now';
-                    lastLoginStr = `<span title="${d.toLocaleString()}">${ago}</span>`;
-                }
-
-                return `
-                <tr>
-                    <td style="color:#9ca3af;font-size:.85rem;">${u.id}</td>
-                    <td><strong>${escHtml(u.username)}</strong></td>
-                    <td>${escHtml(u.email)}</td>
-                    <td><span class="badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role.toUpperCase()}</span></td>
-                    <td>${statusBadge}</td>
-                    <td style="font-size:.85rem;">${lastLoginStr}</td>
-                    <td class="admin-actions">
-                        ${u.role === 'user'
-                            ? `<button class="btn btn-secondary btn-small" onclick="promoteUser(${u.id})">⬆ Make Admin</button>`
-                            : `<button class="btn btn-secondary btn-small" onclick="demoteUser(${u.id})">⬇ Remove Admin</button>`
-                        }
-                        <button class="btn btn-danger btn-small" onclick="deleteUser(${u.id}, '${escHtml(u.email)}')">🗑 Delete</button>
-                    </td>
-                </tr>
-            `.trim();
-        }).join('');
-        }
-
-        function filterUsers() {
-            const q = document.getElementById('userSearch').value.toLowerCase();
-            if (!q) { renderUsers(_allUsers); return; }
-            renderUsers(_allUsers.filter(u =>
-                (u.username || '').toLowerCase().includes(q) ||
-                (u.email    || '').toLowerCase().includes(q) ||
-                (u.role     || '').toLowerCase().includes(q)
-            ));
-        }
-
-        async function setRole(userId, role) {
-            if (!confirm(`Change user #${userId} role to "${role}"?`)) return;
-            try {
-                await API.request('PATCH', `/admin/users/${userId}/role?role=${role}`);
-                UI.showSuccess(`User #${userId} is now "${role}".`);
-                await loadUsers();
-            } catch (e) {
-                UI.showError('Failed to update role.');
-            }
-        }
-
-        function promoteUser(id) { setRole(id, 'admin'); }
-        function demoteUser(id)  { setRole(id, 'user');  }
-
-        async function deleteUser(userId, email) {
-            if (!confirm(`Permanently delete user "${email}" (#${userId})?\n\nThis cannot be undone.`)) return;
-            try {
-                await API.request('DELETE', `/admin/users/${userId}`);
-                UI.showSuccess(`User #${userId} deleted.`);
-                await loadUsers();
-            } catch (e) {
-                UI.showError('Failed to delete user.');
-            }
-        }
-
-        // ── Audit Logs ────────────────────────────────────────────────────────
-        async function loadLogs() {
-            const tbody = document.getElementById('logsTableBody');
-            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr>`;
-            try {
-                _allLogs = await API.request('GET', '/admin/audit-logs') || [];
-                renderLogs(_allLogs);
-                document.getElementById('statLogs').textContent = _allLogs.length;
-            } catch (e) {
-                tbody.innerHTML = emptyRow(7, 'Failed to load audit logs. Check your permissions.');
-            }
-        }
-
-        // ── Event type badge mapping ──────────────────────────────────────────
-        const EVENT_TYPE_CONFIG = {
-            'successful':   { label: '✅ Successful',   cls: 'badge-2xx'     },
-            'unsuccessful': { label: '❌ Unsuccessful',  cls: 'badge-4xx'     },
-            'blocked':      { label: '🚫 Blocked',       cls: 'badge-5xx'     },
-            'rate_limited': { label: '⏱ Rate Limited',  cls: 'badge-ratelimit'},
-            'server_error': { label: '💥 Server Error',  cls: 'badge-5xx'     },
-            'proxied':      { label: '🔀 Proxied',       cls: 'badge-proxy'   },
-            'redirect':     { label: '↩ Redirect',      cls: 'badge-method'  },
-        };
-
-        function eventTypeBadge(et) {
-            const cfg = EVENT_TYPE_CONFIG[et] || { label: et || '—', cls: 'badge-method' };
-            return `<span class="badge ${cfg.cls}" style="white-space:nowrap;">${cfg.label}</span>`;
-        }
-
-        function renderLogs(logs) {
-            const tbody = document.getElementById('logsTableBody');
-            if (!logs || logs.length === 0) {
-                tbody.innerHTML = emptyRow(7, 'No audit logs found.');
-                return;
-            }
-            tbody.innerHTML = logs.map(l => {
-                let details = {};
-                try { details = JSON.parse(l.details || '{}'); } catch(e) {}
-                const sc = l.status_code;
-                const scCls = statusBadgeClass(sc);
-                const resource = l.resource || l.action || '—';
-                return `
-                <tr>
-                    <td style="white-space:nowrap;font-size:.82rem;">${formatDate(l.timestamp)}</td>
-                    <td>${eventTypeBadge(l.event_type)}</td>
-                    <td>
-                        <div class="log-path" title="${escHtml(resource)}" style="max-width:200px;">${escHtml(resource)}</div>
-                    </td>
-                    <td><span class="badge badge-method">${escHtml(l.method || '—')}</span></td>
-                    <td><span class="badge ${scCls}">${sc || '—'}</span></td>
-                    <td style="font-family:monospace;font-size:.82rem;">${escHtml(l.ip_address || '—')}</td>
-                    <td style="font-size:.85rem;">${escHtml(details.user || 'anonymous')}<br>
-                        <span style="color:#9ca3af;font-size:.78rem;">${details.elapsed_ms != null ? details.elapsed_ms + 'ms' : ''}</span>
-                    </td>
-                </tr>`;
-            }).join('');
-        }
-
-        function filterLogs() {
-            const q = document.getElementById('logSearch').value.toLowerCase();
-            if (!q) { renderLogs(_allLogs); return; }
-            renderLogs(_allLogs.filter(l =>
-                (l.action      || '').toLowerCase().includes(q) ||
-                (l.event_type  || '').toLowerCase().includes(q) ||
-                (l.method      || '').toLowerCase().includes(q) ||
-                (l.ip_address  || '').toLowerCase().includes(q) ||
-                String(l.status_code  || '').includes(q)
-            ));
-        }
-
-        // ── XSS helper ────────────────────────────────────────────────────────
-        function escHtml(str) {
-            if (str == null) return '';
-            return String(str)
-                .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-                .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
-
-        // ── Bootstrap ─────────────────────────────────────────────────────────
-        window.addEventListener('load', async function () {
-            // Auth guard — redirect to login if token missing/expired
-            const user = await Auth.requireAuth();
-            if (!user) return;
-
-            // Role guard — only admins may access this page
-            if (user.role !== 'admin') {
-                UI.showError('Access Denied: Admin privileges required.');
-                setTimeout(() => window.location.replace('dashboard.html'), 1500);
-                return;
-            }
-
-            // Render navbar name
-            document.getElementById('userName').textContent = user.username || 'Admin';
-
-            // Load initial data
-            await loadUsers();
-            // Pre-load logs count silently for the stat card
-            try {
-                _allLogs = await API.request('GET', '/admin/audit-logs') || [];
-                document.getElementById('statLogs').textContent = _allLogs.length;
-            } catch(e) { /* non-fatal */ }
-        });
-    </script>
+  window.addEventListener('load',async function(){
+    const user=await Auth.requireAuth();if(!user)return;
+    if(user.role!=='admin'){UI.showError('Access denied: Admin privileges required.');setTimeout(()=>window.location.replace('dashboard.html'),1500);return;}
+    document.getElementById('userName').textContent=user.username||'Admin';
+    document.getElementById('sidebarAvatar').textContent=(user.username||'A')[0].toUpperCase();
+    await loadUsers();
+    try{_allLogs=await API.request('GET','/admin/audit-logs')||[];document.getElementById('statLogs').textContent=_allLogs.length;}catch(e){}
+  });
+</script>
 </body>
 </html>
