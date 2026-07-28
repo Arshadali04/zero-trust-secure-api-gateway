@@ -7,7 +7,6 @@
   <img src="https://img.shields.io/badge/JWT-Auth-4EAA25" alt="JWT" />
   <img src="https://img.shields.io/badge/OAuth2-Enabled-4B0082" alt="OAuth2" />
   <img src="https://img.shields.io/badge/Zero%20Trust-Implemented-FF6B6B" alt="Zero Trust" />
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License" />
   <img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version" />
 </p>
 
@@ -558,19 +557,13 @@ Contributions are welcome. If you would like to improve the gateway, add more de
 
 ---
 
-## License
-
-This project is licensed under the MIT License.
-
----
-
 ## Author
 
 - Name: Arshadali Athani
-- GitHub: https://github.com/your-username
-- LinkedIn: https://www.linkedin.com/in/your-profile
-- Email: your.email@example.com
-- Portfolio: https://your-portfolio.com
+- GitHub: https://github.com/Arshadali04
+- LinkedIn: https://www.linkedin.com/in/arshadali4
+- Email: arshadalia2703@gmail.com
+- Portfolio: https://arshadali04-portfolio.netlify.app/
 
 ---
 
