@@ -1,0 +1,27 @@
+# Version control
+.git/
+.gitignore
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data (SQLite, geoip cache, logs) — persist via volume instead
+data/
+logs/
+
+# Secrets — pass via environment variables instead of baking into the image
+.env
+.env.oauth
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
