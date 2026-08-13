@@ -16,6 +16,7 @@ httptools==0.6.2
 psycopg2-binary==2.9.10
 asyncpg==0.30.0
 SQLAlchemy==2.0.36
+aiosqlite==0.20.0            # REQUIRED — async SQLite driver (config.py default DATABASE_URL)
 alembic==1.14.0
 
 # --- AUTHENTICATION & SECURITY ---
@@ -23,6 +24,9 @@ PyJWT==2.10.0
 python-jose[cryptography]==3.3.0
 cryptography==43.0.0
 passlib[bcrypt]==1.7.4
+argon2-cffi==23.1.0         # REQUIRED — passlib "argon2" scheme (gateway/core/security.py)
+pyotp==2.9.0                # REQUIRED — TOTP MFA (gateway/routes/mfa.py)
+qrcode[pil]==7.4.2          # OPTIONAL — MFA QR code image (falls back to empty if absent)
 Authlib==1.4.0
 pyOpenSSL==24.2.1
 certifi==2024.12.14
