@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>API Keys — Zero Trust Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Auth guard — runs before any content is shown -->
+  <script>
+    (function(){
+      var t=localStorage.getItem('token');
+      if(!t){window.location.replace('login.html');return;}
+      try{
+        var p=t.split('.');
+        if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
+        var b=p[1].replace(/-/g,'+').replace(/_/g,'/');
+        var pad=b.padEnd(Math.ceil(b.length/4)*4,'=');
+        var pl=JSON.parse(atob(pad));
+        if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
+      }catch(e){window.location.replace('login.html');}
+    })();
+  </script>
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    :root{
+      --bg:#0a0e14;
+      --bg2:#0f1620;
+      --bg3:#131d2b;
+      --accent:#5b8cff;
+      --alert:#ff5d5d;
+      --success:#2dd4a0;
+      --warning:#ffb636;
+      --text:#f0f4ff;
+      --muted:rgba(240,244,255,0.55);
+      --dim:rgba(240,244,255,0.28);
+      --glass:rgba(255,255,255,0.04);
+      --glass-border:rgba(255,255,255,0.08);
+      --glass-hover:rgba(255,255,255,0.06);
+      --sans:'Space Grotesk',sans-serif;
+      --mono:'JetBrains Mono',monospace;
+    }
+    html,body{min-height:100%;}
+    body{font-family:var(--sans);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+
+    /* ── Scene canvas ── */
+    .scene-canvas{position:fixed;inset:0;z-index:-1;pointer-events:none;width:100%;height:100%;}
+
+    /* ── Page structure ── */
+    .page-wrap{position:relative;z-index:1;min-height:100vh;overflow-x:hidden;}
+    .container{max-width:1100px;margin:0 auto;padding:0 24px;}
+    .page-main{padding:80px 0 48px;}
+
+    /* ── Topbar ── */
+    .topbar{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,14,20,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);}
+    .topbar-inner{display:flex;height:56px;align-items:center;justify-content:space-between;}
+    .topbar-brand{display:flex;flex-direction:row;gap:10px;font-weight:700;text-decoration:none;color:var(--text);align-items:center;}
+    .topbar-brand-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--accent);}
+    .topbar-brand-name{font-family:var(--sans);font-size:1rem;}
+    .accent-text{color:var(--accent);}
+    .topbar-right{display:flex;flex-direction:row;gap:12px;align-items:center;}
+    .topbar-user{font-family:var(--mono);font-size:0.8rem;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .topbar-nav{display:flex;flex-direction:row;gap:4px;}
+    .topbar-link{padding:6px 12px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:0.875rem;font-weight:500;transition:color 0.2s,background 0.2s;}
+    .topbar-link:hover{color:var(--text);}
+    .topbar-link.active{color:var(--text);background:var(--glass);}
+
+    /* ── Glass panels ── */
+    .panel{background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-radius:12px;padding:24px;}
+    .panel-header{display:flex;flex-direction:row;justify-content:space-between;align-items:center;border-bottom:1px solid var(--glass-border);padding-bottom:16px;margin-bottom:20px;}
+    .panel-header h3{font-size:0.95rem;font-weight:700;color:var(--text);margin:0;}
+
+    /* ── Page header ── */
+    .page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-top:8px;}
+    .page-title{font-size:1.3rem;font-weight:700;letter-spacing:-0.02em;}
+
+    /* ── Tabs ── */
+    .tabs{display:flex;gap:4px;border-bottom:1px solid var(--glass-border);margin-bottom:24px;}
+    .tab-btn{padding:8px 16px;font-size:0.875rem;font-weight:600;color:var(--muted);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.2s;font-family:var(--sans);}
+    .tab-btn.active{color:var(--text);border-bottom-color:var(--accent);}
+    .tab-panel{display:none;}
+    .tab-panel.active{display:block;}
+
+    /* ── Tables ── */
+    .table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--glass-border);}
+    .data-table{width:100%;border-collapse:collapse;}
+    .data-table th{padding:10px 16px;font-family:var(--mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--dim);background:var(--bg3);text-align:left;border-bottom:1px solid var(--glass-border);}
+    .data-table td{padding:12px 16px;font-size:0.875rem;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+    .data-table tr:last-child td{border-bottom:none;}
+    .data-table tr:hover td{background:var(--glass);}
+    .mono{font-family:var(--mono);font-size:0.8rem;color:var(--muted);}
+
+    /* ── Forms ── */
+    .form{display:flex;flex-direction:column;gap:16px;}
+    .form-group{display:flex;flex-direction:column;gap:6px;}
+    .form-label{font-size:0.75rem;font-weight:600;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;}
+    .form-input{width:100%;background:var(--bg3);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);font-family:var(--sans);padding:10px 14px;font-size:0.9rem;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+    .form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,140,255,0.12);}
+    .form-hint{font-size:0.75rem;color:var(--dim);}
+    .form-error{font-size:0.75rem;color:var(--alert);}
+
+    /* ── Buttons ── */
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:8px;font-family:var(--sans);font-size:0.875rem;font-weight:600;cursor:pointer;border:none;transition:all 0.2s;text-decoration:none;}
+    .btn-primary{background:var(--accent);color:#0a0e14;box-shadow:0 4px 16px rgba(91,140,255,0.3);}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(91,140,255,0.4);}
+    .btn-danger{background:var(--alert);color:#fff;}
+    .btn-danger:hover{opacity:0.88;}
+    .btn-ghost{background:transparent;border:1px solid var(--glass-border);color:var(--text);}
+    .btn-ghost:hover{border-color:rgba(91,140,255,0.4);color:var(--accent);}
+    .btn-dim{background:var(--glass);color:var(--muted);border:none;}
+    .btn-sm{padding:6px 12px;font-size:0.8rem;}
+    .btn-full{width:100%;justify-content:center;}
+    .btn:disabled{opacity:0.45;pointer-events:none;}
+    .btn-icon{width:34px;height:34px;padding:0;justify-content:center;align-items:center;display:inline-flex;}
+
+    /* ── Badges ── */
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;font-family:var(--mono);font-size:0.7rem;font-weight:500;}
+    .badge-ok{background:rgba(45,212,160,0.12);color:var(--success);}
+    .badge-warn{background:rgba(255,182,54,0.12);color:var(--warning);}
+    .badge-alert{background:rgba(255,93,93,0.12);color:var(--alert);}
+    .badge-info{background:rgba(91,140,255,0.12);color:var(--accent);}
+    .badge-dim{background:var(--glass);color:var(--dim);border:1px solid var(--glass-border);}
+
+    /* ── Modals ── */
+    .modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(10,14,20,0.85);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px;}
+    .modal-box{max-width:480px;width:100%;position:relative;}
+    .modal-title{font-size:1rem;font-weight:700;margin-bottom:16px;}
+    .modal-close{position:absolute;top:16px;right:16px;}
+    .modal-secret{background:var(--bg3);border:1px solid var(--glass-border);border-radius:8px;padding:16px;margin-bottom:16px;}
+    .modal-secret-value{font-family:var(--mono);font-size:0.8rem;word-break:break-all;color:var(--success);line-height:1.6;user-select:all;}
+
+    /* ── Warn box ── */
+    .warn-box{background:rgba(255,182,54,0.08);border:1px solid rgba(255,182,54,0.25);border-radius:8px;padding:12px 16px;font-size:0.8rem;color:var(--warning);line-height:1.5;margin-bottom:16px;}
+
+    /* ── Checkbox scopes ── */
+    .checkbox-group{display:flex;flex-direction:column;gap:8px;}
+    .checkbox-item{display:flex;align-items:center;gap:10px;font-size:0.875rem;color:var(--text);cursor:pointer;padding:8px 12px;border-radius:6px;border:1px solid var(--glass-border);transition:border-color 0.2s,background 0.2s;}
+    .checkbox-item:hover{background:var(--glass);border-color:rgba(91,140,255,0.3);}
+    .checkbox-item input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
+
+    /* ── Empty state ── */
+    .empty-state{text-align:center;padding:40px;color:var(--dim);font-size:0.875rem;}
+
+    /* ── Actions cell ── */
+    .actions-cell{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+
+    /* ── Misc ── */
+    .text-muted{color:var(--muted);}
+    .text-dim{color:var(--dim);}
+    .text-accent{color:var(--accent);}
+    .flex-row{display:flex;align-items:center;gap:12px;}
+    .flex-between{display:flex;justify-content:space-between;align-items:center;}
+    .mb-16{margin-bottom:16px;}
+    .feedback-msg{font-size:0.82rem;padding:8px 12px;border-radius:6px;line-height:1.4;}
+    .feedback-msg.error{background:rgba(255,93,93,0.1);color:var(--alert);border:1px solid rgba(255,93,93,0.2);}
+
+    @media(max-width:800px){
+      .topbar-nav{display:none;}
+      .topbar-user{display:none;}
+    }
+  </style>
+</head>
+<body>
+<canvas id="bg-canvas" class="scene-canvas"></canvas>
+<div class="page-wrap">
+
+  <!-- ── Topbar ── -->
+  <nav class="topbar">
+    <div class="topbar-inner container">
+      <a href="dashboard.html" class="topbar-brand">
+        <div class="topbar-brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <span class="topbar-brand-name">Zero<span class="accent-text">Trust</span></span>
+      </a>
+      <div class="topbar-right">
+        <nav class="topbar-nav" aria-label="Main navigation">
+          <a href="dashboard.html" class="topbar-link">Dashboard</a>
+          <a href="profile.html" class="topbar-link">Profile</a>
+          <a href="api-keys.html" class="topbar-link active" aria-current="page">Developer Console</a>
+          <a href="attack-lab.html" class="topbar-link">Attack Lab</a>
+          <a href="admin.html" class="topbar-link" id="navAdmin" style="display:none;">Admin</a>
+        </nav>
+        <span class="topbar-user" id="topbarUser"></span>
+        <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">Sign out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="page-main">
+    <div class="container">
+
+      <!-- Page header -->
+      <div class="page-hdr">
+        <h1 class="page-title">Developer Console</h1>
+        <button class="btn btn-primary" id="newKeyBtn">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New API Key
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-api-keys" data-tab="api-keys">API Keys</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-services" data-tab="services">Upstream Services</button>
+      </div>
+
+      <!-- ── API Keys Tab ── -->
+      <div class="tab-panel active" id="tab-api-keys" role="tabpanel">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Key Prefix</th>
+                <th>Scopes</th>
+                <th>Last Used</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="keysTableBody">
+              <tr><td colspan="7"><div class="empty-state">Loading API keys…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Services Tab ── -->
+      <div class="tab-panel" id="tab-services" role="tabpanel">
+        <div class="flex-between mb-16">
+          <p class="text-muted" style="font-size:0.875rem;">Register backend services to proxy through the gateway.</p>
+          <button class="btn btn-ghost btn-sm" id="newServiceBtn">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Register Service
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Upstream URL</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="servicesTableBody">
+              <tr><td colspan="4"><div class="empty-state">Loading services…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /.container -->
+  </main>
+
+</div><!-- /.page-wrap -->
+
+<!-- ══════════════════════════════════════════════
+     Modal: New API Key
+     ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="newKeyModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="newKeyModalTitle">
+  <div class="modal-box panel">
+    <h2 class="modal-title" id="newKeyModalTitle">New API Key</h2>
+    <button class="btn btn-icon btn-dim modal-close" id="closeNewKeyModal" aria-label="Close dialog">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <form class="form" id="newKeyForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="newKeyName">Key Name</label>
+        <input class="form-input" id="newKeyName" type="text" placeholder="e.g. CI/CD Pipeline" autocomplete="off" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Scopes</label>
+        <div class="checkbox-group" id="scopesGroup">
+          <label class="checkbox-item">
+            <input type="checkbox" id="scopeAll" value="all" checked>
+            <span>Full access <span class="badge badge-info" style="margin-left:4px;">all</span></span>
+          </label>
+          <!-- Dynamic proxy scopes injected by apikeys.js -->
+        </div>
+        <span class="form-hint">Check "Full access" for unrestricted use, or select individual service proxies.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="newKeyExpiry">
+          Expires in days
+          <span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400;"> (optional)</span>
+        </label>
+        <input class="form-input" id="newKeyExpiry" type="number" min="1" max="365" placeholder="Leave blank for no expiry">
+      </div>
+      <div id="newKeyFeedback" class="feedback-msg error" style="display:none;"></div>
+      <button type="submit" class="btn btn-primary btn-full">Create API Key</button>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Modal: One-time Key Reveal
+     ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="keyRevealModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="keyRevealTitle">
+  <div class="modal-box panel">
+    <h2 class="modal-title" id="keyRevealTitle">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--success)" stroke-width="2" style="vertical-align:-2px;margin-right:6px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Your New API Key
+    </h2>
+    <div class="warn-box">
+      <strong>One-time reveal.</strong> This key is shown only once — copy it now. You cannot retrieve it after closing this dialog.
+    </div>
+    <div class="modal-secret">
+      <div class="modal-secret-value" id="revealKeyText" aria-label="API key value"></div>
+    </div>
+    <div class="flex-row">
+      <button class="btn btn-primary" id="copyKeyBtn">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        Copy to clipboard
+      </button>
+      <button class="btn btn-ghost" id="doneRevealBtn">I've copied it</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Modal: Register Service
+     ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="newServiceModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="newServiceModalTitle">
+  <div class="modal-box panel">
+    <h2 class="modal-title" id="newServiceModalTitle">Register Service</h2>
+    <button class="btn btn-icon btn-dim modal-close" id="closeNewServiceModal" aria-label="Close dialog">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <form class="form" id="newServiceForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="newSvcName">Service Name</label>
+        <input class="form-input" id="newSvcName" type="text" placeholder="e.g. data" autocomplete="off" required>
+        <span class="form-hint">Proxy path: /api/v1/{name}/* — use lowercase, no spaces</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="newSvcUrl">Upstream URL</label>
+        <input class="form-input" id="newSvcUrl" type="url" placeholder="http://127.0.0.1:8001" required>
+        <span class="form-hint">Must start with http:// or https://</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="newSvcDesc">
+          Description
+          <span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400;"> (optional)</span>
+        </label>
+        <input class="form-input" id="newSvcDesc" type="text" placeholder="Short description">
+      </div>
+      <div id="newSvcFeedback" class="feedback-msg error" style="display:none;"></div>
+      <button type="submit" class="btn btn-primary btn-full">Register Service</button>
+    </form>
+  </div>
+</div>
+
+<script src="js/api.js?v=20"></script>
+<script src="js/auth.js?v=20"></script>
+<script type="module" src="js/pages/apikeys.js"></script>
+</body>
+</html>

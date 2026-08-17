@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Forgot password — Zero Trust Gateway</title>
+  <title>Step-up authentication — Zero Trust Gateway</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -74,47 +74,75 @@
       padding: 40px;
     }
 
-    /* ── Brand header ─────────────────────────────────────────────────────── */
-    .auth-brand {
+    /* ── Lock icon ────────────────────────────────────────────────────────── */
+    .stepup-lock {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      text-decoration: none;
-      color: var(--text);
-      font-weight: 700;
-      font-size: 1.05rem;
-      letter-spacing: -0.02em;
-      margin-bottom: 32px;
+      width: 60px;
+      height: 60px;
+      border-radius: 14px;
+      background: rgba(91,140,255,0.10);
+      border: 1px solid rgba(91,140,255,0.22);
+      margin: 0 auto 24px;
     }
-    .auth-brand-icon {
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .stepup-lock svg {
+      filter: drop-shadow(0 0 10px rgba(91,140,255,0.45));
     }
-    .auth-brand-icon svg {
-      filter: drop-shadow(0 0 8px rgba(91,140,255,0.55));
-    }
-    .accent-text { color: var(--accent); }
 
-    /* ── Card heading ─────────────────────────────────────────────────────── */
-    .auth-heading {
+    /* ── Heading & description ────────────────────────────────────────────── */
+    .stepup-heading {
       text-align: center;
-      margin-bottom: 28px;
-    }
-    .auth-heading h1 {
-      font-size: 1.5rem;
+      font-size: 1.35rem;
       font-weight: 700;
       letter-spacing: -0.025em;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
-    .auth-heading p {
+    .stepup-desc {
+      text-align: center;
       font-size: 0.875rem;
       color: var(--muted);
-      line-height: 1.5;
+      line-height: 1.55;
+      margin-bottom: 20px;
     }
+
+    /* ── Risk badge ───────────────────────────────────────────────────────── */
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      border-radius: 99px;
+      background: rgba(255,93,93,0.08);
+      border: 1px solid rgba(255,93,93,0.22);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--alert);
+      margin: 0 auto 24px;
+      width: fit-content;
+      /* center it */
+      display: flex;
+      justify-content: center;
+    }
+    .risk-badge-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-alert {
+      background: var(--alert);
+      box-shadow: 0 0 6px var(--alert);
+      animation: dotBlink 1.8s ease-in-out infinite;
+    }
+    @keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
     /* ── Alert banner ─────────────────────────────────────────────────────── */
     .alert-banner {
@@ -140,15 +168,11 @@
     }
 
     /* ── Form ─────────────────────────────────────────────────────────────── */
-    .form {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
     .form-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      margin-bottom: 16px;
     }
     .form-label {
       font-family: var(--mono);
@@ -176,7 +200,23 @@
       box-shadow: 0 0 0 3px rgba(91,140,255,0.12);
     }
 
-    /* ── Button ───────────────────────────────────────────────────────────── */
+    /* ── TOTP input — large centered digit display ────────────────────────── */
+    .totp-input {
+      font-family: var(--mono);
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: 0.45em;
+      text-align: center;
+      padding: 16px 14px 16px 24px; /* compensate letter-spacing on right */
+      color: var(--accent);
+      border-color: rgba(91,140,255,0.18);
+    }
+    .totp-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,140,255,0.14);
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -192,10 +232,7 @@
       transition: all 0.2s;
       text-decoration: none;
     }
-    .btn:disabled {
-      opacity: 0.45;
-      pointer-events: none;
-    }
+    .btn:disabled { opacity: 0.45; pointer-events: none; }
     .btn-primary {
       background: var(--accent);
       color: #0a0e14;
@@ -208,30 +245,40 @@
     .btn-primary:active { transform: translateY(0); }
     .btn-full { width: 100%; }
 
-    /* ── Footer link ──────────────────────────────────────────────────────── */
-    .auth-footer {
+    /* ── Sign out link ────────────────────────────────────────────────────── */
+    .stepup-signout {
       text-align: center;
-      margin-top: 24px;
+      margin-top: 20px;
+    }
+    .stepup-signout a {
       font-family: var(--mono);
       font-size: 0.8rem;
-      color: var(--muted);
-    }
-    .auth-footer a {
-      color: var(--accent);
+      color: var(--dim);
       text-decoration: none;
-      font-weight: 600;
+      transition: color 0.2s;
     }
-    .auth-footer a:hover { opacity: 0.8; }
+    .stepup-signout a:hover { color: var(--alert); }
 
-    /* ── Ambient radial gradient behind card ──────────────────────────────── */
+    /* ── Ambient radial background ────────────────────────────────────────── */
     .centered-wrap::before {
       content: '';
       position: fixed;
       inset: 0;
       pointer-events: none;
       background:
-        radial-gradient(700px 500px at 20% 25%, rgba(91,140,255,0.06), transparent 60%),
-        radial-gradient(500px 400px at 80% 75%, rgba(45,212,160,0.04), transparent 55%);
+        radial-gradient(600px 500px at 30% 20%, rgba(255,93,93,0.05), transparent 55%),
+        radial-gradient(600px 400px at 70% 80%, rgba(91,140,255,0.06), transparent 55%);
+    }
+
+    /* ── Visually hidden (accessible labels) ─────────────────────────────── */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border-width: 0;
     }
   </style>
 </head>
@@ -242,44 +289,61 @@
     <div class="centered-wrap">
       <div class="auth-card">
 
-        <!-- Brand -->
-        <a class="auth-brand" href="index.html">
-          <span class="auth-brand-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                 stroke="var(--accent)" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </span>
-          Zero<span class="accent-text">Trust</span>
-        </a>
-
-        <!-- Heading -->
-        <div class="auth-heading">
-          <h1>Forgot password</h1>
-          <p>Enter your email address and we will send you a reset link.</p>
+        <!-- Lock icon -->
+        <div class="stepup-lock" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+               stroke="var(--accent)" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
         </div>
 
-        <!-- Alert banner (shown by reset.js) -->
+        <!-- Heading -->
+        <h2 class="stepup-heading">Identity verification required</h2>
+
+        <!-- Description -->
+        <p class="stepup-desc">
+          Your account risk level has exceeded the threshold for this action.
+          Enter your authenticator code to continue.
+        </p>
+
+        <!-- Risk badge -->
+        <div class="risk-badge-wrap">
+          <div class="risk-badge">
+            <span class="dot dot-alert"></span>
+            Elevated risk detected
+          </div>
+        </div>
+
+        <!-- Alert banner -->
         <div id="alertBanner" class="alert-banner" role="alert" aria-live="polite"></div>
 
-        <!-- Form -->
-        <form id="forgotForm" class="form" action="javascript:void(0)" novalidate>
-          <div class="form-group">
-            <label class="form-label" for="email">Email address</label>
-            <input class="form-input" type="email" id="email" name="email"
-              placeholder="you@example.com" required autocomplete="email" autofocus>
-          </div>
+        <!-- TOTP input -->
+        <div class="form-group">
+          <label class="form-label sr-only" for="totpCode">6-digit authenticator code</label>
+          <input
+            class="form-input totp-input"
+            type="text"
+            id="totpCode"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            placeholder="000000"
+            autofocus
+            aria-label="6-digit authenticator code"
+          >
+        </div>
 
-          <button type="submit" class="btn btn-primary btn-full" id="submitBtn">
-            Send reset link
-          </button>
-        </form>
+        <!-- Verify button -->
+        <button class="btn btn-primary btn-full" id="verifyBtn">
+          Verify identity
+        </button>
 
-        <!-- Back link -->
-        <p class="auth-footer">
-          Remember your password? <a href="login.html">Back to sign in</a>
-        </p>
+        <!-- Sign out -->
+        <div class="stepup-signout">
+          <a href="#" id="signoutLink">Sign out instead</a>
+        </div>
 
       </div>
     </div>
@@ -287,6 +351,6 @@
 
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
-  <script type="module" src="js/pages/reset.js"></script>
+  <script type="module" src="js/pages/stepup.js"></script>
 </body>
 </html>

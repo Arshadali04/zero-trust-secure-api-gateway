@@ -1,221 +1,459 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Profile — Zero Trust Gateway</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/dashboard.css?v=4">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/scene.css">
+  <link rel="stylesheet" href="css/components.css">
+  <!-- Auth guard -->
   <script>
-    (function(){var t=localStorage.getItem('token');if(!t){window.location.replace('login.html');return;}
-    try{var p=t.split('.');if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
-    var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b.padEnd(Math.ceil(b.length/4)*4,'=');
-    var pl=JSON.parse(atob(pad));if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
-    }catch(e){window.location.replace('login.html');}})();
+    (function(){
+      var t=localStorage.getItem('token');
+      if(!t){window.location.replace('login.html');return;}
+      try{
+        var p=t.split('.');
+        if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
+        var b=p[1].replace(/-/g,'+').replace(/_/g,'/');
+        var pad=b.padEnd(Math.ceil(b.length/4)*4,'=');
+        var pl=JSON.parse(atob(pad));
+        if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
+      }catch(e){window.location.replace('login.html');}
+    })();
   </script>
+  <style>
+    .profile-header {
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .profile-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #2dd4a0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(91, 140, 255, 0.2);
+    }
+
+    .profile-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .profile-subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+      background: var(--glass-hover);
+      border-color: rgba(91, 140, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), #2dd4a0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      .panel-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 0;
+    }
+
+    .tab-btn {
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .security-indicator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--glass);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border: 1px solid var(--glass-border);
+    }
+
+    .indicator-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .indicator-dot.ok {
+      background: var(--success);
+      box-shadow: 0 0 12px rgba(45, 212, 160, 0.4);
+    }
+
+    .indicator-dot.warn {
+      background: var(--warning);
+      box-shadow: 0 0 12px rgba(255, 182, 54, 0.4);
+    }
+
+    .indicator-dot.alert {
+      background: var(--alert);
+      box-shadow: 0 0 12px rgba(255, 93, 93, 0.4);
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .info-value {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--text);
+      text-align: right;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
 </head>
 <body>
+<canvas id="bg-canvas" class="scene-canvas"></canvas>
+<div class="page-wrap">
 
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <div class="sidebar-logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-    <div class="sidebar-brand-name">Zero<span>Trust</span></div>
-  </div>
-  <nav class="sidebar-nav">
-    <div class="nav-section-label">Main</div>
-    <a href="dashboard.html" class="nav-item"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
-    <a href="profile.html" class="nav-item active"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</a>
-    <div class="nav-section-label" id="adminSectionLabel" style="display:none;">Admin</div>
-    <a href="admin.html" class="nav-item" id="navAdminItem" style="display:none;"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33"/></svg>Admin Panel</a>
-    <div class="nav-section-label">Account</div>
-    <button class="nav-item danger" onclick="Auth.logout()"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Logout</button>
+  <!-- ── Topbar ── -->
+  <nav class="topbar">
+    <div class="topbar-inner container">
+      <a href="dashboard.html" class="topbar-brand">
+        <div class="topbar-brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <span class="topbar-brand-name">Zero<span class="accent-text">Trust</span></span>
+      </a>
+      <div class="topbar-right">
+        <nav class="topbar-nav" aria-label="Main navigation">
+          <a href="dashboard.html" class="topbar-link">Dashboard</a>
+          <a href="profile.html" class="topbar-link active" aria-current="page">Profile</a>
+          <a href="api-keys.html" class="topbar-link">Developer Console</a>
+          <a href="attack-lab.html" class="topbar-link">Attack Lab</a>
+          <a href="admin.html" class="topbar-link" id="navAdmin" style="display:none;">Admin</a>
+        </nav>
+        <span class="topbar-user" id="topbarUser"></span>
+        <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">Sign out</button>
+      </div>
+    </div>
   </nav>
-  <div class="sidebar-footer">
-    <div class="sidebar-user">
-      <div class="sidebar-avatar" id="sidebarAvatar">—</div>
-      <div class="sidebar-user-info">
-        <div class="sidebar-user-name" id="sidebarName">Loading...</div>
-        <div class="sidebar-user-role" id="sidebarRole">user</div>
-      </div>
-    </div>
-  </div>
-</aside>
 
-<div class="main-content">
-  <div class="topbar">
-    <div><div class="topbar-title">Your Profile</div><div class="topbar-meta">Manage identity &amp; security</div></div>
-    <div class="topbar-right">
-      <button id="editBtn" class="btn btn-primary btn-sm" onclick="toggleEdit()">Edit Profile</button>
-      <button id="saveBtn" class="btn btn-success btn-sm" style="display:none;" onclick="saveProfile()">Save Changes</button>
-      <button id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelEdit()">Cancel</button>
-    </div>
-  </div>
+  <!-- ── Main ── -->
+  <main class="page-main">
+    <div class="container">
 
-  <div class="page-body">
-    <div class="profile-layout">
-
-      <!-- Personal Info -->
-      <div class="profile-card">
-        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Personal Information</h3>
-        <div class="profile-avatar"><div class="avatar-ring" id="profileAvatarLetter">?</div></div>
-        <div class="info-row"><label>Full Name</label>
-          <div class="info-value-wrap">
-            <input type="text" id="editFullName" class="editable-input" style="display:none;">
-            <span id="profileFullName" class="info-value">Loading...</span>
-          </div>
+      <!-- Profile Header Card -->
+      <div class="panel mb-16" style="margin-bottom: 32px;">
+        <div class="profile-header">
+          <div class="profile-avatar" id="profileAvatar">👤</div>
+          <div class="profile-title" id="profileName">Loading...</div>
+          <div class="profile-subtitle" id="profileEmail">—</div>
         </div>
-        <div class="info-row"><label>Username</label>
-          <div class="info-value-wrap">
-            <input type="text" id="editUsername" class="editable-input" style="display:none;">
-            <span id="profileUsername" class="info-value">Loading...</span>
-          </div>
-        </div>
-        <div class="info-row"><label>Email</label><span id="profileEmail" class="info-value">Loading...</span></div>
-      </div>
 
-      <!-- Account Details -->
-      <div class="profile-card">
-        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Account Details</h3>
-        <div class="info-row"><label>User ID</label><span id="profileID" class="info-value">—</span></div>
-        <div class="info-row"><label>Role</label><span id="profileRole" class="info-value">—</span></div>
-        <div class="info-row"><label>Member Since</label><span id="profileCreated" class="info-value">—</span></div>
-      </div>
-
-      <!-- Change Password -->
-      <div class="profile-card" style="grid-column:1/-1;">
-        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Change Password</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;align-items:start;">
-          <div class="form-field">
-            <label for="currentPassword">Current Password</label>
-            <input type="password" id="currentPassword" placeholder="••••••••••">
+        <!-- Quick Stats -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="riskScoreValue">—</div>
+            <div class="stat-label">Risk Score</div>
           </div>
-          <div class="form-field">
-            <label for="newPassword">New Password</label>
-            <input type="password" id="newPassword" placeholder="••••••••••">
-            <p class="form-hint">8+ chars · uppercase · lowercase · digit · special character</p>
+          <div class="stat-card">
+            <div class="stat-value" id="accountAgeValue">—</div>
+            <div class="stat-label">Account Age</div>
           </div>
-        </div>
-        <div style="margin-top:1rem;">
-          <button id="changePwdBtn" class="btn btn-primary" onclick="changePassword()">Update Password</button>
-        </div>
-      </div>
-
-      <!-- MFA -->
-      <div class="profile-card" id="mfa" style="grid-column:1/-1;">
-        <h3><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Two-Factor Authentication</h3>
-        <div class="mfa-status-row">
-          <span id="mfaStatusBadge"></span>
-          <div id="mfaActions"></div>
-        </div>
-        <div id="mfaSetupArea" class="mfa-setup-panel" style="display:none;">
-          <p class="mfa-description">Scan the QR code below with Google Authenticator, Authy, or any TOTP-compatible app. Then enter the 6-digit code to activate MFA on your account.</p>
-          <div class="mfa-qr-center" id="mfaQRWrap"></div>
-          <div class="mfa-secret-box">
-            <label>Manual entry — Secret Key</label>
-            <code id="mfaSecretText" class="mfa-secret-code"></code>
+          <div class="stat-card">
+            <div class="stat-value" id="sessionStatusValue">✓</div>
+            <div class="stat-label">Session</div>
           </div>
-          <div class="mfa-controls">
-            <input type="text" id="mfaSetupCode" maxlength="6" placeholder="000000" class="mfa-pin-input" inputmode="numeric">
-            <button class="btn btn-success" onclick="confirmMFASetup()">Activate MFA</button>
-            <button class="btn btn-secondary" onclick="cancelMFASetup()">Cancel</button>
+          <div class="stat-card">
+            <div class="stat-value" id="mfaStatusValue">OFF</div>
+            <div class="stat-label">2FA Status</div>
           </div>
         </div>
       </div>
 
-    </div>
+      <!-- Security Status Panel -->
+      <div class="panel mb-16">
+        <div class="panel-header">
+          <h3>Security Status</h3>
+        </div>
+        <div id="securityIndicators">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
 
-    <div style="display:flex;justify-content:center;margin-top:1rem;">
-      <a href="dashboard.html" class="btn btn-secondary">← Back to Dashboard</a>
-    </div>
-  </div>
-</div>
+      <!-- Tabs Navigation -->
+      <div class="panel">
+        <div class="tab-nav">
+          <button class="tab-btn active" data-tab="account">Account Settings</button>
+          <button class="tab-btn" data-tab="password">Password & Security</button>
+          <button class="tab-btn" data-tab="mfa">Two-Factor Auth</button>
+          <button class="tab-btn" data-tab="session">Session Details</button>
+        </div>
 
-<div id="notification" class="notification"></div>
-<script src="js/api.js?v=4"></script>
-<script src="js/ui.js?v=4"></script>
-<script src="js/auth.js?v=4"></script>
-<script>
-  let _mfaEnabled=false;
-  async function loadMFAStatus(){try{const s=await API.request('GET','/auth/mfa/status');_mfaEnabled=s.mfa_enabled;}catch(e){_mfaEnabled=false;}renderMFAState();}
-  function renderMFAState(){
-    const badge=document.getElementById('mfaStatusBadge');
-    const actions=document.getElementById('mfaActions');
-    const setup=document.getElementById('mfaSetupArea');
-    if(_mfaEnabled){
-      badge.innerHTML='<span class="badge badge-success">MFA Enabled</span>';
-      setup.style.display='none';
-      actions.innerHTML='<button class="btn btn-danger btn-sm" onclick="startMFADisable()">Disable MFA</button>';
-    }else{
-      badge.innerHTML='<span class="badge badge-danger">MFA Disabled</span>';
-      setup.style.display='none';
-      actions.innerHTML='<button class="btn btn-primary btn-sm" onclick="startMFASetup()">Enable MFA</button>';
-    }
-  }
-  async function startMFASetup(){const btn=event.target;btn.disabled=true;btn.textContent='Setting up…';
-    try{const d=await API.request('POST','/auth/mfa/setup');
-      document.getElementById('mfaSecretText').textContent=d.secret;
-      document.getElementById('mfaQRWrap').innerHTML=d.qr_code_base64?`<img src="data:image/png;base64,${d.qr_code_base64}" alt="MFA QR">`:'<p class="mfa-description">QR unavailable — use the secret key above.</p>';
-      document.getElementById('mfaSetupArea').style.display='block';
-      document.getElementById('mfaActions').innerHTML='';
-    }catch(e){UI.showError('Failed to start MFA setup.');}finally{btn.disabled=false;btn.textContent='Enable MFA';}}
-  async function confirmMFASetup(){const code=document.getElementById('mfaSetupCode').value.trim();
-    if(code.length!==6){UI.showError('Enter the 6-digit code.');return;}
-    try{await API.request('POST','/auth/mfa/verify-setup',{code});UI.showSuccess('MFA activated!');_mfaEnabled=true;renderMFAState();}catch(e){UI.showError('Invalid code. Try again.');}}
-  function cancelMFASetup(){document.getElementById('mfaSetupArea').style.display='none';renderMFAState();}
-  async function startMFADisable(){const code=prompt('Enter your 6-digit authenticator code to disable MFA:');if(!code)return;
-    try{await API.request('POST','/auth/mfa/disable',{code:code.trim()});UI.showSuccess('MFA disabled.');_mfaEnabled=false;renderMFAState();}catch(e){UI.showError('Invalid code. MFA not disabled.');}}
+        <!-- Account Tab -->
+        <div id="account" class="tab-content active">
+          <form class="form" id="profileForm" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="emailDisplay">Email Address</label>
+              <input class="form-input" id="emailDisplay" type="email" readonly>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fullNameInput">Full Name</label>
+              <input class="form-input" id="fullNameInput" type="text" placeholder="Your full name" autocomplete="name">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="usernameInput">Username</label>
+              <input class="form-input" id="usernameInput" type="text" placeholder="username" autocomplete="username">
+            </div>
+            <div id="profileFeedback" class="feedback-msg" style="display:none;"></div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </form>
+        </div>
 
-  window.addEventListener('load',async()=>{
-    if(!Auth.isAuthenticated()){window.location.href='login.html';return;}
-    loadMFAStatus();
-    const user=await Auth.syncCurrentUser()||Auth.getCurrentUser();
-    if(!user)return;
-    render(user);
+        <!-- Password Tab -->
+        <div id="password" class="tab-content">
+          <form class="form" id="passwordForm" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="currentPwd">Current Password</label>
+              <div class="input-wrap">
+                <input class="form-input" id="currentPwd" type="password" autocomplete="current-password" placeholder="••••••••">
+                <button type="button" class="pw-toggle" data-target="currentPwd" aria-label="Toggle visibility">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newPwd">New Password</label>
+              <div class="input-wrap">
+                <input class="form-input" id="newPwd" type="password" autocomplete="new-password" placeholder="••••••••">
+                <button type="button" class="pw-toggle" data-target="newPwd" aria-label="Toggle visibility">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+              <span class="form-hint">8+ chars · uppercase · digit · special char</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="confirmPwd">Confirm Password</label>
+              <div class="input-wrap">
+                <input class="form-input" id="confirmPwd" type="password" autocomplete="new-password" placeholder="••••••••">
+                <button type="button" class="pw-toggle" data-target="confirmPwd" aria-label="Toggle visibility">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+            <div id="pwFeedback" class="feedback-msg" style="display:none;"></div>
+            <button type="submit" class="btn btn-primary">Update Password</button>
+          </form>
+        </div>
 
-    function render(u){
-      if(u.role==='admin'){var n=document.getElementById('navAdminItem');if(n)n.style.display='flex';var l=document.getElementById('adminSectionLabel');if(l)l.style.display='block';}
-      const initials=(u.username||'?')[0].toUpperCase();
-      document.getElementById('profileAvatarLetter').textContent=initials;
-      document.getElementById('sidebarAvatar').textContent=initials;
-      document.getElementById('sidebarName').textContent=u.username||'User';
-      document.getElementById('sidebarRole').textContent=u.role||'user';
-      document.getElementById('profileFullName').textContent=u.full_name||'Not set';
-      document.getElementById('profileUsername').textContent=u.username||'Not set';
-      document.getElementById('editFullName').value=u.full_name||'';
-      document.getElementById('editUsername').value=u.username||'';
-      document.getElementById('profileEmail').textContent=u.email||'Not set';
-      document.getElementById('profileID').textContent=u.id||'—';
-      document.getElementById('profileRole').innerHTML=`<span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${(u.role||'user').toUpperCase()}</span>`;
-      document.getElementById('profileCreated').textContent=u.created_at?new Date(u.created_at).toLocaleDateString():'—';
-    }
+        <!-- MFA Tab -->
+        <div id="mfa" class="tab-content">
+          <!-- MFA disabled state -->
+          <div id="mfaDisabledState">
+            <p class="text-muted mb-16" style="font-size:0.875rem;line-height:1.6;">
+              Two-factor authentication adds an extra layer of security. We recommend enabling it using an authenticator app.
+            </p>
+            <button class="btn btn-primary" id="enableMfaBtn">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+              Enable Two-Factor Authentication
+            </button>
+          </div>
 
-    window.toggleEdit=function(){
-      ['profileFullName','profileUsername'].forEach(id=>document.getElementById(id).style.display='none');
-      ['editFullName','editUsername'].forEach(id=>document.getElementById(id).style.display='inline-block');
-      document.getElementById('editBtn').style.display='none';
-      document.getElementById('saveBtn').style.display='inline-flex';
-      document.getElementById('cancelBtn').style.display='inline-flex';
-    };
-    window.cancelEdit=function(){
-      ['profileFullName','profileUsername'].forEach(id=>document.getElementById(id).style.display='inline');
-      ['editFullName','editUsername'].forEach(id=>document.getElementById(id).style.display='none');
-      document.getElementById('editBtn').style.display='inline-flex';
-      document.getElementById('saveBtn').style.display='none';
-      document.getElementById('cancelBtn').style.display='none';
-      const u=Auth.getCurrentUser();if(u)render(u);
-    };
-    window.saveProfile=async function(){const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='Saving...';
-      try{const updated=await API.request("PATCH","/auth/me",{full_name:document.getElementById('editFullName').value.trim()||null,username:document.getElementById('editUsername').value.trim()});
-        if(updated){localStorage.setItem("user",JSON.stringify(updated));render(updated);UI.showSuccess("Profile updated!");cancelEdit();}
-      }catch(e){}finally{btn.disabled=false;btn.textContent='Save Changes';}};
-    window.changePassword=async function(){
-      const cur=document.getElementById('currentPassword').value;
-      const np=document.getElementById('newPassword').value;
-      if(!cur||!np){UI.showError("Both fields are required.");return;}
-      const btn=document.getElementById('changePwdBtn');btn.disabled=true;btn.textContent='Updating...';
-      try{await API.request("PATCH","/auth/me/password",{current_password:cur,new_password:np});
-        UI.showSuccess("Password updated!");document.getElementById('currentPassword').value='';document.getElementById('newPassword').value='';
-      }catch(e){}finally{btn.disabled=false;btn.textContent='Update Password';}};
-  });
-</script>
+          <!-- MFA setup in-progress state -->
+          <div id="mfaSetupState" style="display:none;">
+            <p class="text-muted mb-16" style="font-size:0.875rem;line-height:1.6;">
+              Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.), then verify the code below.
+            </p>
+            <div class="qr-wrap" id="mfaQrWrap"></div>
+            <div class="form-group mb-16">
+              <label class="form-label">Or enter manually</label>
+              <input class="form-input secret-input" id="mfaSecretText" readonly>
+            </div>
+            <form class="form" id="mfaVerifyForm" novalidate>
+              <div class="form-group">
+                <label class="form-label" for="mfaCode">Verification Code</label>
+                <input class="form-input text-mono" id="mfaCode" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+              </div>
+              <div id="mfaVerifyFeedback" class="feedback-msg" style="display:none;"></div>
+              <div class="flex-row">
+                <button type="submit" class="btn btn-primary">Activate 2FA</button>
+                <button type="button" class="btn btn-ghost" id="cancelMfaBtn">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- MFA enabled state -->
+          <div id="mfaEnabledState" style="display:none;">
+            <div class="security-indicator">
+              <div class="indicator-dot ok"></div>
+              <span>Two-Factor Authentication is active and protecting your account</span>
+            </div>
+            <p class="text-muted mb-16" style="font-size:0.875rem;line-height:1.6;">
+              To disable 2FA, enter your current authenticator code:
+            </p>
+            <form class="form" id="mfaDisableForm" novalidate>
+              <div class="form-group">
+                <label class="form-label" for="mfaDisableCode">Authenticator Code</label>
+                <input class="form-input text-mono" id="mfaDisableCode" type="text" inputmode="numeric" maxlength="6" placeholder="000000">
+              </div>
+              <div id="mfaDisableFeedback" class="feedback-msg" style="display:none;"></div>
+              <button type="submit" class="btn btn-danger btn-sm">Disable 2FA</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Session Tab -->
+        <div id="session" class="tab-content">
+          <div style="margin-bottom: 20px;">
+            <div class="info-row">
+              <span class="info-label">Email (Subject)</span>
+              <span class="info-value" id="claimSub">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Role</span>
+              <span class="info-value" id="claimRole">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Issued At</span>
+              <span class="info-value" id="claimIat">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Expires</span>
+              <span class="info-value" id="claimExp">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Last Login</span>
+              <span class="info-value" id="lastLoginTime">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Last Login IP</span>
+              <span class="info-value" id="lastLoginIp">—</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /.panel (tabs) -->
+
+    </div><!-- /.container -->
+  </main>
+
+</div><!-- /.page-wrap -->
+
+<script src="js/api.js?v=20"></script>
+<script src="js/auth.js?v=20"></script>
+<script type="module" src="js/pages/profile.js"></script>
 </body>
 </html>

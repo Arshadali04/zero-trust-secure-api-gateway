@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Attack Lab — Zero Trust Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Inline auth guard — redirect before any render if no valid token -->
+  <script>
+    (function(){
+      try {
+        var t = localStorage.getItem('token');
+        if (!t) { window.location.replace('login.html'); return; }
+        var p = t.split('.');
+        if (p.length !== 3) { localStorage.removeItem('token'); window.location.replace('login.html'); return; }
+        var b = p[1].replace(/-/g,'+').replace(/_/g,'/');
+        var pad = b + '==='.slice(0,(4-b.length%4)%4);
+        var pl = JSON.parse(atob(pad));
+        if (pl.exp && Date.now() >= pl.exp * 1000) { localStorage.removeItem('token'); window.location.replace('login.html'); }
+      } catch(e) { window.location.replace('login.html'); }
+    })();
+  </script>
+  <style>
+    /* ─── Design tokens ──────────────────────────────────────────────────────── */
+    :root {
+      --bg:           #0a0e14;
+      --bg2:          #0f1620;
+      --bg3:          #131d2b;
+      --accent:       #5b8cff;
+      --alert:        #ff5d5d;
+      --success:      #2dd4a0;
+      --warning:      #ffb636;
+      --text:         #f0f4ff;
+      --muted:        rgba(240,244,255,0.55);
+      --dim:          rgba(240,244,255,0.28);
+      --glass:        rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+      --glass-hover:  rgba(255,255,255,0.06);
+      --sans:         'Space Grotesk', sans-serif;
+      --mono:         'JetBrains Mono', monospace;
+    }
+
+    /* ─── Reset & base ───────────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { background: var(--bg); height: 100%; color-scheme: dark; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      background-image:
+        radial-gradient(900px 700px at 10% 10%, rgba(91,140,255,0.05), transparent 65%),
+        radial-gradient(700px 600px at 90% 85%, rgba(255,93,93,0.04), transparent 60%);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font-family: var(--sans); }
+
+    /* ─── Scene canvas ───────────────────────────────────────────────────────── */
+    .scene-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      display: block;
+    }
+
+    /* ─── Page wrap ──────────────────────────────────────────────────────────── */
+    .page-wrap {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── Container ──────────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ─── Topbar ──────────────────────────────────────────────────────────────── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(10,14,20,0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+
+    .topbar-brand-icon {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+      filter: drop-shadow(0 0 8px rgba(91,140,255,0.5));
+    }
+
+    .topbar-brand-name {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .accent-text { color: var(--accent); }
+
+    .topbar-nav {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+    }
+
+    .topbar-link {
+      padding: 6px 12px;
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+
+    .topbar-link:hover { color: var(--text); background: var(--glass-hover); }
+    .topbar-link.active { color: var(--text); background: var(--glass); }
+
+    .topbar-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .topbar-user {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ─── Page main ──────────────────────────────────────────────────────────── */
+    .page-main { padding: 80px 0 48px; }
+
+    /* ─── Glass panels ───────────────────────────────────────────────────────── */
+    .panel {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .panel-lg { padding: 32px; }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel-header h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .panel-section { margin-bottom: 24px; }
+
+    /* ─── Forms ──────────────────────────────────────────────────────────────── */
+    .form { display: flex; flex-direction: column; gap: 16px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+    .form-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-select {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--sans);
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,140,255,0.12);
+    }
+
+    /* Range sliders */
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      accent-color: var(--accent);
+      background: var(--bg3);
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* ─── Buttons ────────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-family: var(--sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0a0e14;
+      box-shadow: 0 4px 16px rgba(91,140,255,0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(91,140,255,0.4);
+    }
+
+    .btn-danger {
+      background: var(--alert);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(255,93,93,0.2);
+    }
+    .btn-danger:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(255,93,93,0.35);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--text);
+    }
+    .btn-ghost:hover {
+      border-color: rgba(91,140,255,0.4);
+      color: var(--accent);
+    }
+
+    .btn-dim { background: var(--glass); color: var(--muted); border: 1px solid var(--glass-border); }
+    .btn-sm  { padding: 6px 12px; font-size: 0.8rem; }
+    .btn-full { width: 100%; justify-content: center; }
+
+    .btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
+    .btn-icon {
+      width: 34px; height: 34px;
+      padding: 0;
+      justify-content: center;
+    }
+
+    /* ─── Badges ─────────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .badge-ok    { background: rgba(45,212,160,0.12);  color: var(--success); }
+    .badge-warn  { background: rgba(255,182,54,0.12);  color: var(--warning); }
+    .badge-alert { background: rgba(255,93,93,0.12);   color: var(--alert);   }
+    .badge-info  { background: rgba(91,140,255,0.12);  color: var(--accent);  }
+    .badge-dim   { background: var(--glass);           color: var(--dim);     }
+
+    /* ─── Status dots ────────────────────────────────────────────────────────── */
+    .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-ok   { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .dot-alert { background: var(--alert);  box-shadow: 0 0 8px var(--alert);   }
+    .dot-warn  { background: var(--warning); }
+    .dot-dim   { background: var(--dim); }
+
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+    .dot-ok    { animation: dot-pulse 2.4s ease-in-out infinite; }
+    .dot-alert { animation: dot-pulse 1.2s ease-in-out infinite; }
+
+    /* ─── Metric grid ────────────────────────────────────────────────────────── */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 12px;
+    }
+
+    .metric-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 1.75rem;
+      font-weight: 600;
+      line-height: 1;
+      transition: color 0.3s;
+    }
+
+    .metric-label {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* ─── Risk gauge ─────────────────────────────────────────────────────────── */
+    .risk-gauge-wrap { display: flex; align-items: center; gap: 12px; }
+
+    .risk-bar-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .risk-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease, background 0.5s ease;
+    }
+
+    .risk-value {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 600;
+      min-width: 48px;
+      text-align: right;
+      transition: color 0.5s;
+    }
+
+    .risk-low  { background: var(--success); color: var(--success); }
+    .risk-med  { background: var(--warning); color: var(--warning); }
+    .risk-high { background: var(--alert);   color: var(--alert);   }
+
+    /* ─── Event log ──────────────────────────────────────────────────────────── */
+    .event-log {
+      max-height: 320px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .event-item {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border-left: 3px solid var(--dim);
+      background: var(--glass);
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .event-item.blocked { border-left-color: var(--alert);   background: rgba(255,93,93,0.05); }
+    .event-item.allowed { border-left-color: var(--success); background: rgba(45,212,160,0.03); }
+    .event-item.flagged { border-left-color: var(--warning); }
+
+    .event-time {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--dim);
+      flex-shrink: 0;
+      min-width: 64px;
+    }
+
+    .event-type {
+      font-weight: 600;
+      font-size: 0.78rem;
+      flex-shrink: 0;
+      text-transform: capitalize;
+    }
+
+    .event-detail {
+      color: var(--muted);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+      font-size: 0.78rem;
+    }
+
+    /* Scrollbar for event log */
+    .event-log::-webkit-scrollbar { width: 4px; }
+    .event-log::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 2px; }
+    .event-log::-webkit-scrollbar-track { background: transparent; }
+
+    /* ─── Sparkline ──────────────────────────────────────────────────────────── */
+    .sparkline-canvas {
+      display: block;
+      width: 100%;
+      height: 80px;
+      border-radius: 6px;
+    }
+
+    /* ─── Misc utilities ─────────────────────────────────────────────────────── */
+    .divider { height: 1px; background: var(--glass-border); margin: 16px 0; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--dim);
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    .text-mono    { font-family: var(--mono); }
+    .text-muted   { color: var(--muted); }
+    .text-dim     { color: var(--dim); }
+    .text-accent  { color: var(--accent); }
+    .text-alert   { color: var(--alert); }
+    .text-success { color: var(--success); }
+    .text-warning { color: var(--warning); }
+
+    .flex-row     { display: flex; align-items: center; gap: 12px; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+    .mt-4  { margin-top: 4px; }
+    .mt-8  { margin-top: 8px; }
+    .mt-16 { margin-top: 16px; }
+    .mb-8  { margin-bottom: 8px; }
+    .mb-16 { margin-bottom: 16px; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+
+    /* ─── Page-level layout ──────────────────────────────────────────────────── */
+    .lab-header {
+      padding: 28px 0 24px;
+    }
+
+    .lab-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
+
+    .lab-title-accent { color: var(--accent); }
+
+    .lab-subtitle {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Two-column grid for controls + metrics */
+    .lab-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      .lab-grid { grid-template-columns: 1fr; }
+      .topbar-nav { display: none; }
+    }
+
+    /* Controls panel heading */
+    .controls-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    /* Duration progress (shows when running) */
+    .run-progress-wrap { margin-top: 14px; }
+
+    .run-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .run-progress-track {
+      height: 3px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .run-progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--accent);
+      transition: width 0.4s linear;
+    }
+
+    /* Global scrollbar style */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--glass-border) transparent;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Full-page 3D WebGL canvas -->
+<canvas class="scene-canvas" id="bg-canvas" aria-hidden="true"></canvas>
+
+<div class="page-wrap">
+
+  <!-- ── Topbar ─────────────────────────────────────────────────────────────── -->
+  <nav class="topbar" role="navigation" aria-label="Main navigation">
+    <div class="topbar-inner container">
+
+      <!-- Brand -->
+      <a href="dashboard.html" class="topbar-brand">
+        <span class="topbar-brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </span>
+        <span class="topbar-brand-name">Zero<span class="accent-text">Trust</span></span>
+      </a>
+
+      <!-- Nav links -->
+      <div class="topbar-nav" role="menubar">
+        <a href="dashboard.html" class="topbar-link" role="menuitem">Dashboard</a>
+        <a href="profile.html"   class="topbar-link" role="menuitem">Profile</a>
+        <a href="api-keys.html"  class="topbar-link" role="menuitem">API Keys</a>
+        <a href="attack-lab.html" class="topbar-link active" role="menuitem" aria-current="page">Attack Lab</a>
+        <a href="admin.html"     class="topbar-link" id="adminNavLink" style="display:none;" role="menuitem">Admin</a>
+      </div>
+
+      <!-- Right: user + logout -->
+      <div class="topbar-right">
+        <span class="topbar-user" id="topbarUser" aria-label="Logged in as"></span>
+        <button class="btn btn-ghost btn-sm" onclick="Auth.logout()" aria-label="Sign out">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Logout
+        </button>
+      </div>
+
+    </div>
+  </nav>
+
+  <!-- ── Page content ───────────────────────────────────────────────────────── -->
+  <main class="page-main" id="mainContent">
+    <div class="container">
+
+      <!-- Page header -->
+      <header class="lab-header">
+        <h1 class="lab-title">
+          Attack <span class="lab-title-accent">Lab</span>
+        </h1>
+        <p class="lab-subtitle">Live 3D threat simulation &mdash; real-time WebSocket feed</p>
+      </header>
+
+      <!-- ── Two-column grid: controls (left) + metrics (right) ─────────────── -->
+      <div class="lab-grid">
+
+        <!-- Controls panel -->
+        <section class="panel" aria-label="Attack controls">
+          <h2 class="controls-title">Attack Simulator</h2>
+
+          <!-- Status row -->
+          <div id="labStatus" class="flex-row mb-16">
+            <span class="dot dot-dim" id="labDot" aria-hidden="true"></span>
+            <span id="labStatusText" class="text-mono text-dim" aria-live="polite">Ready</span>
+          </div>
+
+          <!-- Controls form -->
+          <div class="form">
+            <div class="form-group">
+              <label class="form-label" for="attackType">Attack Type</label>
+              <select class="form-select" id="attackType">
+                <option value="sqli">SQL Injection</option>
+                <option value="xss">Cross-Site Scripting</option>
+                <option value="path_traversal">Path Traversal</option>
+                <option value="bruteforce">Brute Force</option>
+                <option value="flood">Request Flood</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="durationSlider">
+                Duration
+                <span id="durVal" class="text-mono text-accent" aria-live="polite">10s</span>
+              </label>
+              <input
+                type="range" id="durationSlider"
+                min="3" max="60" value="10"
+                aria-label="Attack duration in seconds"
+              >
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="intensitySlider">
+                Intensity
+                <span id="intVal" class="text-mono text-accent" aria-live="polite">5</span>
+              </label>
+              <input
+                type="range" id="intensitySlider"
+                min="1" max="20" value="5"
+                aria-label="Attack intensity, requests per second"
+              >
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex-row mt-16">
+            <button class="btn btn-danger btn-full" id="runBtn" aria-label="Launch attack simulation">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M5 3l14 9-14 9V3z"/>
+              </svg>
+              Run Attack
+            </button>
+            <button class="btn btn-ghost btn-sm" id="stopBtn" disabled aria-label="Stop running attack">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="6" width="12" height="12" rx="1.5"/>
+              </svg>
+              Stop
+            </button>
+          </div>
+
+          <!-- Run progress (hidden until running) -->
+          <div id="runProgressWrap" class="run-progress-wrap" style="display:none;" aria-live="polite">
+            <div class="run-progress-meta">
+              <span class="text-dim" style="font-size:0.72rem; font-family:var(--mono);">Elapsed</span>
+              <span class="text-mono text-dim" style="font-size:0.72rem;" id="elapsedText">0s</span>
+            </div>
+            <div class="run-progress-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+              <div class="run-progress-fill" id="runProgressFill" style="width:0%;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Metrics panel -->
+        <section class="panel" aria-label="Live metrics">
+          <div class="panel-header">
+            <h2 style="font-size:0.9rem; font-weight:700;">Live Metrics</h2>
+          </div>
+
+          <!-- Counter cards -->
+          <div class="metric-grid mb-16">
+            <div class="metric-card">
+              <div class="metric-label">Total</div>
+              <div class="metric-value" id="totalCount" aria-label="Total requests">0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Blocked</div>
+              <div class="metric-value text-alert" id="blockedCount" aria-label="Blocked requests">0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Allowed</div>
+              <div class="metric-value text-success" id="allowedCount" aria-label="Allowed requests">0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Block Rate</div>
+              <div class="metric-value text-accent" id="blockRate" aria-label="Block rate percentage">&mdash;</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Risk sparkline -->
+          <div class="panel-section">
+            <div class="form-label mb-8">Risk Score History</div>
+            <canvas
+              class="sparkline-canvas"
+              id="sparklineCanvas"
+              height="80"
+              role="img"
+              aria-label="Risk score history chart"
+            ></canvas>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Risk gauge -->
+          <div>
+            <div class="flex-between mb-8">
+              <span class="form-label">Current Risk Level</span>
+            </div>
+            <div class="risk-gauge-wrap" role="meter" aria-valuemin="0" aria-valuemax="1">
+              <div class="risk-bar-track">
+                <div class="risk-bar-fill risk-low" id="riskFill" style="width:0%;"></div>
+              </div>
+              <span class="risk-value risk-low" id="riskVal" aria-live="polite">0.00</span>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /.lab-grid -->
+
+      <!-- ── Event log (full width) ──────────────────────────────────────────── -->
+      <section class="panel" aria-label="Live event log">
+        <div class="panel-header">
+          <h2 style="font-size:0.9rem; font-weight:700;">Live Events</h2>
+          <span id="wsStatus" class="badge badge-dim" aria-live="polite">Disconnected</span>
+        </div>
+        <div class="event-log" id="eventLog" role="log" aria-live="polite" aria-relevant="additions">
+          <div class="empty-state">
+            No events yet &mdash; run an attack to see live data
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /.container -->
+  </main>
+
+</div><!-- /.page-wrap -->
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script type="module" src="js/pages/attacklab.js"></script>
+</body>
+</html>

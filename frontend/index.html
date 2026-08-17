@@ -1,61 +1,398 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zero Trust API Gateway</title>
-    <link rel="stylesheet" href="css/style.css?v=2">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Zero Trust API Gateway — Secure every request</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/scene.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    /* ── Landing-specific overrides ──────────────────────────── */
+    body { overflow-x: hidden; }
+
+    /* Topbar for landing (no auth guard needed) */
+    .land-topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .land-topbar-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .land-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .land-brand:hover { text-decoration: none; color: var(--text); }
+    .land-nav-right { display: flex; align-items: center; gap: 8px; }
+
+    /* Hero layout */
+    .hero-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 80px 24px 40px;
+    }
+
+    /* Hero card */
+    .hero-card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 36px 40px;
+      max-width: 520px;
+      width: 100%;
+      animation: floatY 5s ease-in-out infinite;
+      position: relative;
+    }
+
+    /* Live badge */
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--success);
+      background: rgba(45, 212, 160, 0.08);
+      border: 1px solid rgba(45, 212, 160, 0.18);
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulseDot 2.2s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.75); }
+    }
+
+    /* Hero headings */
+    .hero-h1 {
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+    .hero-h1 .accent-line {
+      color: var(--accent);
+      display: block;
+    }
+
+    .hero-desc {
+      font-size: 0.95rem;
+      color: var(--muted);
+      line-height: 1.65;
+      margin-bottom: 24px;
+    }
+
+    /* CTA buttons row */
+    .hero-btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+    }
+
+    /* Stats row */
+    .hero-stats {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      padding-top: 20px;
+      border-top: 1px solid var(--glass-border);
+    }
+    .hero-stat {}
+    .hero-stat-val {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+    .hero-stat-lbl {
+      font-size: 0.7rem;
+      color: var(--dim);
+      letter-spacing: 0.02em;
+    }
+
+    /* Features section */
+    .features-section {
+      width: 100%;
+      max-width: 520px;
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feature-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 16px;
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .feature-row:hover {
+      border-color: rgba(91, 140, 255, 0.2);
+      background: var(--glass-hover);
+    }
+    .feature-icon-wrap {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .feat-alert { background: rgba(255, 93, 93, 0.1); color: var(--alert); }
+    .feat-warn  { background: rgba(255, 182, 54, 0.1); color: var(--warning); }
+    .feat-ok    { background: rgba(45, 212, 160, 0.1); color: var(--success); }
+    .feature-row-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .feature-row-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .land-footer {
+      width: 100%;
+      max-width: 520px;
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 0 4px;
+    }
+    .land-footer-copy {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--dim);
+    }
+    .land-footer-brand {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .land-footer-chips {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .land-chip {
+      font-family: var(--mono);
+      font-size: 0.58rem;
+      letter-spacing: 0.04em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      color: var(--dim);
+    }
+
+    /* Responsive */
+    @media (max-width: 560px) {
+      .hero-card { padding: 24px 20px; }
+      .hero-btns { flex-direction: column; }
+      .hero-btns .btn { width: 100%; justify-content: center; }
+      .land-nav-right .btn-ghost { display: none; }
+    }
+  </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <span class="logo-icon">🔐</span>
-                Zero Trust Gateway
-            </div>
-            <ul class="nav-menu">
-                <li><a href="index.html" class="nav-link active">Home</a></li>
-                <li><a href="#features" class="nav-link">Features</a></li>
-                <li><a href="login.html" class="nav-link btn-login">Login</a></li>
-                <li><a href="register.html" class="nav-link btn-register">Sign Up</a></li>
-            </ul>
+  <!-- WebGL background canvas -->
+  <canvas id="bg-canvas" class="scene-canvas"></canvas>
+
+  <div class="page-wrap">
+
+    <!-- ── Fixed Top Nav ── -->
+    <nav class="land-topbar">
+      <div class="land-topbar-inner">
+        <a href="index.html" class="land-brand">
+          <span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--accent)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </span>
+          Zero<span class="accent-text">Trust</span>&nbsp;GW
+        </a>
+        <div class="land-nav-right">
+          <a href="login.html" class="btn btn-ghost btn-sm">Sign in</a>
+          <a href="register.html" class="btn btn-primary btn-sm">Get started</a>
         </div>
+      </div>
     </nav>
 
-    <section class="hero">
-        <div class="hero-content">
-            <h1>🔐 Zero Trust API Gateway</h1>
-            <p>Enterprise-grade API security with JWT authentication</p>
-            <div class="hero-buttons">
-                <a href="register.html" class="btn btn-primary">Get Started</a>
-                <a href="#features" class="btn btn-secondary">Learn More</a>
-            </div>
-        </div>
-    </section>
+    <!-- ── Hero ── -->
+    <div class="hero-wrap">
 
-    <section id="features" class="features">
-        <h2>✨ Key Features</h2>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🔒</div>
-                <h3>Secure Authentication</h3>
-                <p>JWT-based authentication with Argon2 password hashing</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">👥</div>
-                <h3>Role-Based Access</h3>
-                <p>Fine-grained control with multiple user roles</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <h3>High Performance</h3>
-                <p>Async operations with FastAPI and SQLAlchemy</p>
-            </div>
+      <!-- Main hero panel -->
+      <div class="hero-card">
+        <!-- Live badge -->
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          Zero-trust enforcement active
         </div>
-    </section>
 
-    <footer class="footer">
-        <p>&copy; 2026 Zero Trust API Gateway. All rights reserved.</p>
-    </footer>
+        <!-- Headline -->
+        <h1 class="hero-h1">
+          Stop guessing.
+          <span class="accent-line">Verify everything.</span>
+        </h1>
+
+        <!-- Description -->
+        <p class="hero-desc">
+          Every request inspected, risk-scored, and governed before it reaches your services.
+          No implicit trust. No exceptions.
+        </p>
+
+        <!-- CTA buttons -->
+        <div class="hero-btns">
+          <a href="register.html" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            Create account
+          </a>
+          <a href="login.html" class="btn btn-ghost">
+            Sign in
+          </a>
+        </div>
+
+        <!-- Stats row -->
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="hero-stat-val">6</div>
+            <div class="hero-stat-lbl">middleware layers</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-val">14</div>
+            <div class="hero-stat-lbl">attack vectors</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-val">&lt;2ms</div>
+            <div class="hero-stat-lbl">latency</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Features summary -->
+      <div class="features-section">
+
+        <div class="feature-row">
+          <div class="feature-icon-wrap feat-alert">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-row-title">WAF + Injection Detection</div>
+            <div class="feature-row-desc">Pattern-based filtering catches SQL injection, XSS, path traversal, and command injection before they execute.</div>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feature-icon-wrap feat-warn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-row-title">Adaptive Risk Scoring</div>
+            <div class="feature-row-desc">Every request scored across auth strength, behaviour patterns, and threat signals in real time. Auto-block on threshold.</div>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feature-icon-wrap feat-ok">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+              <path d="M8 11V7a4 4 0 018 0v4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-row-title">TOTP MFA + Step-up Auth</div>
+            <div class="feature-row-desc">Time-based one-time codes with per-user behavioural profiling. Step-up auth triggered on anomalous activity.</div>
+          </div>
+        </div>
+
+      </div><!-- .features-section -->
+
+      <!-- Footer -->
+      <footer class="land-footer">
+        <span class="land-footer-copy">© 2025 Arshadali M Athani</span>
+        <span class="land-footer-brand">ZeroTrustGW</span>
+        <div class="land-footer-chips">
+          <span class="land-chip">FastAPI</span>
+          <span class="land-chip">JWT</span>
+          <span class="land-chip">Argon2id</span>
+          <span class="land-chip">PyOTP</span>
+          <span class="land-chip">Three.js</span>
+        </div>
+      </footer>
+
+    </div><!-- .hero-wrap -->
+
+  </div><!-- .page-wrap -->
+
+  <!-- Auth redirect check (runs synchronously before module scripts) -->
+  <script src="js/auth.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    if (typeof Auth !== "undefined" && Auth.isAuthenticated()) window.location.replace("dashboard.html");
+  </script>
+
+  <!-- 3D background scene -->
+  <script type="module">
+    import { initAuthScene } from './js/scene-auth.js';
+    initAuthScene(document.getElementById('bg-canvas'));
+  </script>
 </body>
 </html>

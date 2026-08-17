@@ -1,220 +1,221 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Dashboard — Zero Trust Gateway</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/dashboard.css?v=4">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/scene.css">
+  <link rel="stylesheet" href="css/components.css">
+  <!-- Inline auth guard: redirect to login if no valid JWT -->
   <script>
-    (function(){try{var t=localStorage.getItem('token');if(!t){window.location.replace('login.html');return;}
-    var p=t.split('.');if(p.length!==3){localStorage.removeItem('token');window.location.replace('login.html');return;}
-    var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b+'==='.slice(0,(4-b.length%4)%4);
-    var pl=JSON.parse(atob(pad));if(pl.exp&&Date.now()>=pl.exp*1000){localStorage.removeItem('token');window.location.replace('login.html');}
-    }catch(e){window.location.replace('login.html');}})();
+    (function () {
+      try {
+        var t = localStorage.getItem('token');
+        if (!t) { window.location.replace('login.html'); return; }
+        var p = t.split('.');
+        if (p.length !== 3) { localStorage.removeItem('token'); window.location.replace('login.html'); return; }
+        var b = p[1].replace(/-/g, '+').replace(/_/g, '/');
+        var pad = b + '==='.slice(0, (4 - b.length % 4) % 4);
+        var pl = JSON.parse(atob(pad));
+        if (pl.exp && Date.now() >= pl.exp * 1000) {
+          localStorage.removeItem('token');
+          window.location.replace('login.html');
+        }
+      } catch (e) {
+        window.location.replace('login.html');
+      }
+    })();
   </script>
+  <style>
+    /* ── Dashboard-specific panel-sm ──────────────────────────── */
+    .panel-sm {
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .panel-sm:hover {
+      background: var(--glass-hover);
+    }
+  </style>
 </head>
 <body>
 
-<!-- ── Sidebar ── -->
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <div class="sidebar-logo-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    </div>
-    <div class="sidebar-brand-name">Zero<span>Trust</span></div>
-  </div>
+  <!-- WebGL background canvas -->
+  <canvas id="bg-canvas" class="scene-canvas"></canvas>
 
-  <nav class="sidebar-nav">
-    <div class="nav-section-label">Main</div>
-    <a href="dashboard.html" class="nav-item active">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Dashboard
-    </a>
-    <a href="profile.html" class="nav-item">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      Profile
-    </a>
-    <div class="nav-section-label" id="adminSectionLabel" style="display:none;">Admin</div>
-    <a href="admin.html" class="nav-item" id="navAdminItem" style="display:none;">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 008.6 15a1.65 1.65 0 00-1.82-.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 10a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0015 8.6a1.65 1.65 0 001.82.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 15z"/></svg>
-      Admin Panel
-    </a>
-    <div class="nav-section-label">Account</div>
-    <button class="nav-item danger" onclick="Auth.logout()">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      Logout
-    </button>
-  </nav>
+  <div class="page-wrap">
 
-  <div class="sidebar-footer">
-    <div class="sidebar-user">
-      <div class="sidebar-avatar" id="sidebarAvatar">—</div>
-      <div class="sidebar-user-info">
-        <div class="sidebar-user-name" id="sidebarName">Loading...</div>
-        <div class="sidebar-user-role" id="sidebarRole">user</div>
-      </div>
-    </div>
-  </div>
-</aside>
-
-<!-- ── Main ── -->
-<div class="main-content">
-  <div class="topbar">
-    <div>
-      <div class="topbar-title">Security Dashboard</div>
-      <div class="topbar-meta">Real-time system overview</div>
-    </div>
-    <div class="topbar-right">
-      <div class="status-dot"><div class="dot"></div>System Operational</div>
-    </div>
-  </div>
-
-  <div class="page-body">
-
-    <!-- MFA Alert -->
-    <div id="mfaBanner" class="alert-banner" style="display:none;">
-      <p>⚠ Two-factor authentication is not enabled. Enable MFA to secure your account.</p>
-      <a href="profile.html#mfa">Enable MFA →</a>
-    </div>
-
-    <!-- Stat cards -->
-    <div class="page-section">
-      <div class="section-header"><span class="section-title">System Status</span></div>
-      <div class="grid-4">
-        <div class="stat-card">
-          <div class="stat-icon cyan">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </div>
-          <div class="stat-label">API Health</div>
-          <div class="stat-value" id="apiStatus">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon emerald">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
-          <div class="stat-label">Authentication</div>
-          <div class="stat-value" style="color:var(--emerald);">Active</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon violet">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-          <div class="stat-label">Account Role</div>
-          <div class="stat-value" id="userRoleCard">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon amber">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2" ry="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
-          </div>
-          <div class="stat-label">MFA Status</div>
-          <div class="stat-value" id="mfaStatusCard">—</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Security posture -->
-    <div class="page-section">
-      <div class="section-header"><span class="section-title">Security Posture</span></div>
-      <div class="grid-4">
-        <div class="sec-card active-cyan">
-          <h4>Risk Score</h4>
-          <div class="sc-value" id="riskScore">—</div>
-          <div class="sc-sub" id="riskAction">Fetching score...</div>
-        </div>
-        <div class="sec-card active-emerald">
-          <h4>WAF Protection</h4>
-          <div class="sc-value" style="color:var(--emerald);">Active</div>
-          <div class="sc-sub">SQLi · XSS · Path Traversal · CMDi</div>
-        </div>
-        <div class="sec-card active-cyan">
-          <h4>Rate Limiter</h4>
-          <div class="sc-value" style="color:var(--cyan);">Active</div>
-          <div class="sc-sub">300 req/min · 10 req/min auth</div>
-        </div>
-        <div class="sec-card" id="mfaSecCard">
-          <h4>Two-Factor Auth</h4>
-          <div class="sc-value" id="mfaSecValue">Checking...</div>
-          <div class="sc-sub" id="mfaSecSub">—</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick actions -->
-    <div class="page-section">
-      <div class="section-header"><span class="section-title">Quick Actions</span></div>
-      <div class="action-grid">
-        <a href="profile.html" class="action-tile">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          View Profile
+    <!-- ── Topbar ── -->
+    <nav class="topbar">
+      <div class="topbar-inner container">
+        <a href="dashboard.html" class="topbar-brand">
+          <span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </span>
+          ZeroTrust<span class="accent-text">GW</span>
         </a>
-        <a href="profile.html" class="action-tile" id="mfaActionBtn">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
-          <span id="mfaActionLabel">Setup MFA</span>
-        </a>
-        <a id="adminActionBtn" href="admin.html" class="action-tile" style="display:none;">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 008.6 15a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06"/></svg>
-          Admin Panel
-        </a>
-        <button class="action-tile" onclick="Auth.logout()">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
-        </button>
+        <div class="topbar-right">
+          <nav class="topbar-nav">
+            <a href="dashboard.html" class="topbar-link active">Dashboard</a>
+            <a href="profile.html" class="topbar-link">Profile</a>
+            <a href="api-keys.html" class="topbar-link">API Keys</a>
+            <a href="attack-lab.html" class="topbar-link">Attack Lab</a>
+            <span id="adminLinkWrap" style="display:none">
+              <a href="admin.html" class="topbar-link text-alert">Admin</a>
+            </span>
+          </nav>
+          <span class="topbar-user" id="topbarUser">loading...</span>
+          <button class="btn btn-dim btn-sm" id="logoutBtn">Sign out</button>
+        </div>
       </div>
-    </div>
-  </div>
-</div>
+    </nav>
 
-<div id="notification" class="notification"></div>
+    <!-- ── Main content ── -->
+    <main class="page-main">
+      <div class="container">
 
-<script src="js/api.js?v=4"></script>
-<script src="js/ui.js?v=4"></script>
-<script src="js/auth.js?v=4"></script>
-<script>
-  window.addEventListener("load",function(){
-    if(window.location.search)window.history.replaceState({},'',window.location.pathname);
-    var user=Auth.getCurrentUser();
-    if(!user){var tok=Auth.getToken();if(!tok){Auth.logout();return;}
-      try{var p=tok.split('.');var b=p[1].replace(/-/g,'+').replace(/_/g,'/');var pad=b+'==='.slice(0,(4-b.length%4)%4);
-      var pl=JSON.parse(atob(pad));user={email:pl.sub||'',username:(pl.sub||'User').split('@')[0],full_name:'',role:pl.role||'user'};
-      localStorage.setItem('user',JSON.stringify(user));}catch(e){user={username:'User',role:'user'};}}
-    renderUser(user);
-    API.request("GET","/auth/me").then(function(f){if(!f)return;localStorage.setItem("user",JSON.stringify(f));renderUser(f);}).catch(function(){});
-    API.getHealth().then(function(h){
-      var ok=h&&h.status==="healthy";
-      document.getElementById("apiStatus").textContent=ok?"Healthy":"Degraded";
-      document.getElementById("apiStatus").style.color=ok?"var(--emerald)":"var(--amber)";
-    }).catch(function(){document.getElementById("apiStatus").textContent="Offline";document.getElementById("apiStatus").style.color="var(--rose)";});
-    API.request("GET","/auth/mfa/status").then(function(s){
-      var en=s&&s.mfa_enabled;
-      document.getElementById("mfaStatusCard").textContent=en?"Enabled":"Disabled";
-      document.getElementById("mfaStatusCard").style.color=en?"var(--emerald)":"var(--rose)";
-      document.getElementById("mfaSecValue").textContent=en?"Enabled":"Disabled";
-      document.getElementById("mfaSecSub").textContent=en?"TOTP 2FA protecting this account":"Enable MFA on your Profile page";
-      document.getElementById("mfaSecCard").className="sec-card "+(en?"active-emerald":"active-rose");
-      if(!en)document.getElementById("mfaBanner").style.display="flex";
-      document.getElementById("mfaActionLabel").textContent=en?"Manage MFA":"Setup MFA";
-    }).catch(function(){});
-    fetch("http://127.0.0.1:8000/auth/me",{headers:{"Authorization":"Bearer "+Auth.getToken()}}).then(function(r){
-      var score=r.headers.get("X-Risk-Score");var action=r.headers.get("X-Risk-Action");
-      if(score!==null){var s=parseFloat(score);
-        var cls=s<0.4?"risk-low":s<0.65?"risk-medium":s<0.8?"risk-high":"risk-critical";
-        var lbl=s<0.4?"Low":s<0.65?"Medium":s<0.8?"High":"Critical";
-        document.getElementById("riskScore").innerHTML='<span class="risk-pill '+cls+'">'+lbl+' ('+s.toFixed(3)+')</span>';
-        document.getElementById("riskAction").textContent="Action: "+(action||"allow");
-      }else{document.getElementById("riskScore").textContent="N/A";}
-    }).catch(function(){});
-  });
-  function renderUser(u){
-    document.getElementById("sidebarName").textContent=u.username||'User';
-    document.getElementById("sidebarAvatar").textContent=(u.username||'U')[0].toUpperCase();
-    document.getElementById("sidebarRole").textContent=u.role||'user';
-    document.getElementById("userRoleCard").textContent=(u.role||'user').toUpperCase();
-    if(u.role==='admin'){
-      var n=document.getElementById("navAdminItem");if(n)n.style.display="flex";
-      var l=document.getElementById("adminSectionLabel");if(l)l.style.display="block";
-      var a=document.getElementById("adminActionBtn");if(a)a.style.display="flex";
-    }
-  }
-</script>
+        <!-- Page header -->
+        <div class="flex-between mb-16">
+          <div>
+            <h2 style="font-size:1.3rem;font-weight:700">Security Console</h2>
+            <p id="sessionInfo" class="text-dim" style="font-size:0.8rem;font-family:var(--mono);margin-top:4px"></p>
+          </div>
+          <div class="flex-row">
+            <span id="healthBadge" class="badge badge-dim">checking...</span>
+          </div>
+        </div>
+
+        <!-- Metrics row -->
+        <div class="metric-grid mb-16" id="metricsGrid">
+
+          <!-- Risk score metric -->
+          <div class="metric-card panel">
+            <div class="metric-label">Account Risk Score</div>
+            <div class="metric-value" id="riskValue" style="color:var(--success)">--</div>
+            <div class="risk-gauge-wrap">
+              <div class="risk-bar-track">
+                <div class="risk-bar-fill risk-low" id="riskFill" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Account status -->
+          <div class="metric-card panel">
+            <div class="metric-label">Account Status</div>
+            <div id="accountStatus" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+              <div class="flex-row">
+                <span class="dot dot-ok"></span>
+                <span id="accountActive" style="font-size:0.875rem">Active</span>
+              </div>
+              <div class="flex-row">
+                <span id="mfaStatusDot" class="dot dot-warn"></span>
+                <span id="mfaStatusText" style="font-size:0.875rem">MFA: checking...</span>
+              </div>
+              <div class="flex-row" id="stepUpRow" style="display:none">
+                <span class="dot dot-alert"></span>
+                <span style="font-size:0.875rem;color:var(--alert)">Step-up required</span>
+              </div>
+              <div class="flex-row" id="frozenRow" style="display:none">
+                <span class="dot dot-alert"></span>
+                <span style="font-size:0.875rem;color:var(--alert)">Account frozen</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Session -->
+          <div class="metric-card panel">
+            <div class="metric-label">Session</div>
+            <div id="sessionUser" class="metric-value" style="font-size:1rem;word-break:break-all">--</div>
+            <div class="form-hint mt-8" id="sessionExpiry"></div>
+          </div>
+
+          <!-- Gateway Health -->
+          <div class="metric-card panel">
+            <div class="metric-label">Gateway Health</div>
+            <div class="metric-value" id="healthStatus" style="color:var(--dim)">--</div>
+            <div class="form-hint mt-8" id="healthDetail"></div>
+          </div>
+
+        </div><!-- .metric-grid -->
+
+        <!-- Live Proxy Test -->
+        <div class="panel mb-16">
+          <div class="panel-header">
+            <h3 style="font-size:0.95rem;font-weight:700">Live Proxy Test</h3>
+            <div class="flex-row">
+              <select class="form-select btn-sm" id="proxyEndpointSel" style="font-family:var(--mono);font-size:0.8rem;width:auto">
+                <option value="data/status">GET /api/v1/data/status</option>
+                <option value="data/hello">GET /api/v1/data/hello</option>
+                <option value="data/ping">GET /api/v1/data/ping</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="proxyBtn">Call API</button>
+            </div>
+          </div>
+          <div id="proxyResult" style="font-family:var(--mono);font-size:0.8rem;color:var(--muted);white-space:pre-wrap;min-height:40px;padding:10px 12px;background:var(--bg3);border-radius:6px;overflow-x:auto;line-height:1.6">
+            Select an endpoint and click "Call API" to test the reverse proxy.
+          </div>
+        </div>
+
+        <!-- Security Architecture -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 style="font-size:0.95rem;font-weight:700">Security Architecture</h3>
+            <span class="badge badge-info">Live</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+
+            <div class="panel-sm" style="border-color:rgba(91,140,255,0.2);padding:12px;text-align:center">
+              <div class="dot dot-ok" style="margin:0 auto 8px"></div>
+              <div style="font-size:0.8rem;font-weight:600">Identity Core</div>
+              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">You (JWT)</div>
+            </div>
+
+            <div class="panel-sm" style="border-color:rgba(255,182,54,0.2);padding:12px;text-align:center">
+              <div class="dot dot-warn" style="margin:0 auto 8px"></div>
+              <div style="font-size:0.8rem;font-weight:600">Risk Engine</div>
+              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">ML scoring</div>
+            </div>
+
+            <div class="panel-sm" style="border-color:rgba(255,93,93,0.2);padding:12px;text-align:center">
+              <div class="dot dot-alert" style="margin:0 auto 8px"></div>
+              <div style="font-size:0.8rem;font-weight:600">WAF</div>
+              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">SQLi / XSS / path</div>
+            </div>
+
+            <div class="panel-sm" style="border-color:rgba(45,212,160,0.2);padding:12px;text-align:center">
+              <div class="dot dot-ok" style="margin:0 auto 8px"></div>
+              <div style="font-size:0.8rem;font-weight:600">Proxy</div>
+              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">Upstream services</div>
+            </div>
+
+            <div class="panel-sm" style="border-color:rgba(255,93,93,0.2);padding:12px;text-align:center">
+              <a href="attack-lab.html" style="text-decoration:none;color:inherit;display:block">
+                <div class="dot dot-alert" style="margin:0 auto 8px"></div>
+                <div style="font-size:0.8rem;font-weight:600">Attack Lab</div>
+                <div style="font-size:0.7rem;color:var(--accent);margin-top:2px">Open →</div>
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- .container -->
+    </main><!-- .page-main -->
+
+  </div><!-- .page-wrap -->
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script type="module" src="js/pages/dashboard.js"></script>
+
 </body>
 </html>
