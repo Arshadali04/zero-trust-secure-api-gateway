@@ -1,43 +1,19 @@
 /**
- * auth.js — Unified authentication module.
+ * auth.js — Global window.Auth
  *
- * Single login flow for BOTH email/password AND OAuth:
- *   1. Obtain a JWT token (API call or URL param).
- *   2. Optionally fetch /auth/me for a full user object.
- *   3. Call finishLogin(token, user) → stores session → redirects to dashboard.
+ * Plain JS (no import/export). Requires window.API (api.js) to be loaded first.
+ * Provides authentication state management, login/register flows, OAuth callback
+ * handling, and route guards for protected pages.
  *
- * Rules enforced here:
- *  - NEVER wipe the token inside this module except in logout() / isAuthenticated() expiry check.
- *  - NEVER navigate inside a catch block — show an error and stay on the page.
- *  - Every public method that can fail catches internally and returns null/false (no re-throw).
+ * Rules:
+ *  - Never wipe the token except in logout() and the expiry check in isAuthenticated().
+ *  - Every public method that can fail catches internally and returns a result object.
+ *  - Navigation only happens in finishLogin(), logout(), requireAuth(), requireAdmin().
  */
 
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
-
-function _extractErrorMessage(error, fallback) {
-  fallback = fallback || "Request failed";
-
-  const detail = error && error.data && error.data.detail;
-
-  // FastAPI/Pydantic validation: { detail: [ {loc, msg, type}, ... ] }
-  if (Array.isArray(detail)) {
-    return detail
-      .map(function (e) {
-        const loc = Array.isArray(e.loc) ? e.loc.slice(1).join(".") : "";
-        const msg = e.msg || "Invalid value";
-        return loc ? loc + ": " + msg : msg;
-      })
-      .join(", ");
-  }
-
-  if (typeof detail === "string") return detail;
-  if (error && typeof error.data === "string") return error.data;
-  if (error && typeof error.message === "string") return error.message;
-
-  return fallback;
-}
 
 function _storeSession(token, user) {
   localStorage.setItem("token", token);
@@ -49,205 +25,175 @@ function _storeSession(token, user) {
 function _clearSession() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  localStorage.removeItem("refresh_token");
+}
+
+function _decodeJwtPayload(token) {
+  try {
+    var parts = token.split(".");
+    if (parts.length !== 3) return null;
+    var base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    var padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    return JSON.parse(atob(padded));
+  } catch (_) {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Public Auth object
+// window.Auth
 // ---------------------------------------------------------------------------
 
-const Auth = {
+window.Auth = {
 
-  // ── Token / session helpers ────────────────────────────────────────────────
+  // ── Token / session helpers ───────────────────────────────────────────────
 
   getToken() {
     return localStorage.getItem("token");
   },
 
   isAuthenticated() {
-    const token = this.getToken();
+    var token = this.getToken();
     if (!token) return false;
 
-    try {
-      const parts = token.split(".");
-      if (parts.length !== 3) return false;
+    var payload = _decodeJwtPayload(token);
+    if (!payload) return false;
 
-      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-      const payload = JSON.parse(atob(padded));
-
-      if (payload.exp && Date.now() >= payload.exp * 1000) {
-        _clearSession();   // token is expired — clean up proactively
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      console.warn("[Auth] JWT decode failed:", e);
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      _clearSession();
       return false;
     }
+
+    return true;
   },
 
   getCurrentUser() {
     try {
-      const raw = localStorage.getItem("user");
-      if (!raw) return null;
-      const obj = JSON.parse(raw);
-      return obj && typeof obj === "object" ? obj : null;
-    } catch {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch (_) {
       return null;
     }
   },
 
-  // ── Core shared finish step (used by BOTH flows) ───────────────────────────
+  decodeToken() {
+    var token = this.getToken();
+    if (!token) return null;
+    return _decodeJwtPayload(token);
+  },
 
-  /**
-   * Store session and navigate to dashboard.
-   * This is the ONLY place that does window.location navigation after login.
-   */
-  finishLogin(token, user) {
-    if (!token) {
-      UI.showError("Login failed: server did not return a token.");
-      return;
-    }
+  // ── Core finish step ──────────────────────────────────────────────────────
+
+  finishLogin(token, user, refreshToken) {
     _storeSession(token, user || null);
-    // Use timestamp to force browser to fetch a fresh dashboard.html,
-    // bypassing any stale cached version.
+    if (refreshToken) {
+      localStorage.setItem("refresh_token", refreshToken);
+    }
     window.location.replace("dashboard.html?t=" + Date.now());
   },
 
-  // ── Email / password login ─────────────────────────────────────────────────
+  // ── Email / password login ────────────────────────────────────────────────
 
-  /**
-   * Called from the login form submit handler.
-   * Returns true on success, false on failure (never throws).
-   */
   async login(email, password) {
-    UI.showLoading("Logging in…");
-
     try {
-      const response = await API.login(email, password);
-      const token = response && response.access_token;
-      const user  = response && response.user;
+      var response = await API.login(email, password);
+      var token = response && response.access_token;
 
-      if (!token) {
-        throw { message: "Server did not return an access token." };
+      if (response && response.mfa_required) {
+        return { mfa_required: true, temp_token: token };
       }
 
-      if (response.mfa_required) {
-          UI.hideLoading();
-          return { mfa_required: true, temp_token: token };
-      }
-
-      this.finishLogin(token, user);
+      this.finishLogin(token, response && response.user, response && response.refresh_token);
       return { success: true };
 
-    } catch (error) {
-      UI.hideLoading();
-      const msg = _extractErrorMessage(error, "Login failed. Check your email and password.");
-      UI.showError(msg);
-      console.error("[Auth] email/password login error:", error);
-      return false;
+    } catch (e) {
+      return { error: _extractError(e, "Login failed") };
     }
   },
 
-  // ── OAuth callback ─────────────────────────────────────────────────────────
+  // ── OAuth callback ────────────────────────────────────────────────────────
 
-  /**
-   * Call on login.html load.
-   * Detects ?token=... in the URL (set by the backend OAuth callback).
-   * Returns true if an OAuth redirect was processed, false if this is a plain login load.
-   * Never throws.
-   */
   async handleOAuthCallback() {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const token  = params.get("token");
-      const email  = params.get("user");
-      const error  = params.get("error");
-      const msg    = params.get("msg");
+      var raw = window.location.hash.replace(/^#/, "");
+      var params = new URLSearchParams(raw);
+      var token = params.get("token");
+      var email = params.get("user");
+      var error = params.get("error");
+      var msg   = params.get("msg");
+      var mfaRequired = params.get("mfa_required") === "true";
 
-      // Nothing in the URL — normal login page load, do nothing.
+      // Nothing in the fragment — normal login page load
       if (!token && !error) return false;
 
-      // Always clean the URL immediately so a page refresh doesn't re-trigger this.
+      // Always clean the fragment so a page refresh does not re-trigger
       window.history.replaceState({}, document.title, window.location.pathname);
 
       if (error) {
-        UI.showError(msg || "OAuth login failed. Please try again.");
-        return false;
+        var errMsg =
+          error === "account_frozen"
+            ? msg || "Account frozen due to suspicious behaviour. Please try again after 1 hour."
+            : error === "no_email"
+            ? msg || "OAuth account has no usable verified email."
+            : msg || "OAuth login failed. Please try again.";
+        // Return an error object so the login page can display it via showAlert.
+        return { error: errMsg };
       }
 
-      const mfa_required = params.get("mfa_required") === "true";
-      if (mfa_required) {
-          return { mfa_required: true, temp_token: token, email: email };
+      if (mfaRequired) {
+        return { mfa_required: true, temp_token: token, email: email };
       }
 
-      // Build a minimal user from the email query param as a fast fallback.
-      let user = null;
+      // Build a minimal user from the email query param as a fast fallback
+      var user = null;
       if (email) {
-        const username = email.split("@")[0] || "user";
+        var username = email.split("@")[0] || "user";
         user = { email: email, username: username, full_name: username };
       }
 
-      // Try to get the full user object from /auth/me.
-      // We store the token temporarily for API.request to pick up.
+      // Try to get the full user object from /auth/me
+      // Temporarily store the token so API.request picks it up
       localStorage.setItem("token", token);
       try {
-        const fresh = await API.request("GET", "/auth/me");
+        var fresh = await API.request("GET", "/auth/me");
         if (fresh && typeof fresh === "object") user = fresh;
-      } catch (e) {
-        // /auth/me failed — not fatal, we'll use the email-derived fallback.
-        console.warn("[Auth] /auth/me failed during OAuth callback, using cached user:", e);
-        // Remove the temp token so finishLogin -> _storeSession sets it cleanly.
+      } catch (fetchErr) {
+        // /auth/me failed — use the email-derived fallback; not fatal
+        console.warn("[Auth] /auth/me failed during OAuth callback:", fetchErr);
         localStorage.removeItem("token");
       }
 
-      // finishLogin will re-persist the token (and user) and navigate.
       this.finishLogin(token, user);
       return true;
 
     } catch (e) {
       console.error("[Auth] handleOAuthCallback unexpected error:", e);
-      UI.showError("Unexpected error during OAuth login.");
+      if (window.UI && typeof window.UI.showError === "function") {
+        window.UI.showError("Unexpected error during OAuth login.");
+      }
       return false;
     }
   },
 
-  // ── Registration ───────────────────────────────────────────────────────────
+  // ── Registration ──────────────────────────────────────────────────────────
 
   async register(email, username, password, fullName) {
-    UI.showLoading("Creating account…");
-
     try {
       await API.register(email, username, password, fullName);
-      UI.hideLoading();
-      UI.showSuccess("Account created! Redirecting to login…");
-      setTimeout(function () {
-        window.location.replace("login.html");
-      }, 1200);
-      return true;
-    } catch (error) {
-      UI.hideLoading();
-      UI.showError(_extractErrorMessage(error, "Registration failed."));
-      console.error("[Auth] register error:", error);
-      return false;
+      return { success: true };
+    } catch (e) {
+      return { error: _extractError(e, "Registration failed") };
     }
   },
 
-  // ── Sync user from backend (used by profile.html) ─────────────────────────
+  // ── Sync user from backend ────────────────────────────────────────────────
 
-  /**
-   * Fetches the current user from /auth/me and caches in localStorage.
-   * Returns the user object on success, null on failure.
-   */
   async syncCurrentUser() {
-    const token = this.getToken();
-    if (!token) {
+    if (!this.getToken()) {
       _clearSession();
       return null;
     }
     try {
-      const me = await API.request("GET", "/auth/me");
+      var me = await API.request("GET", "/auth/me");
       if (me && typeof me === "object") {
         localStorage.setItem("user", JSON.stringify(me));
         return me;
@@ -259,66 +205,74 @@ const Auth = {
     }
   },
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
 
   logout() {
     _clearSession();
     window.location.replace("login.html");
   },
 
-  // ── Dashboard guard ────────────────────────────────────────────────────────
+  // ── Route guard: any authenticated user ───────────────────────────────────
 
-  /**
-   * Call at the top of dashboard.html.
-   * Redirects to login if not authenticated, otherwise returns the user object.
-   * NEVER returns null while the token is valid — falls back to localStorage cache.
-   */
   async requireAuth() {
     if (!this.isAuthenticated()) {
       window.location.replace("login.html");
       return null;
     }
 
-    // Try to get fresh user data from backend.
+    // Try to get fresh user data from the backend
     try {
-      const fresh = await API.request("GET", "/auth/me");
+      var fresh = await API.request("GET", "/auth/me");
       if (fresh && typeof fresh === "object") {
         localStorage.setItem("user", JSON.stringify(fresh));
         return fresh;
       }
     } catch (e) {
-      // If the backend says the token is invalid or requires MFA, 
-      // the token is effectively useless. Clear session and redirect.
-      if (e.status === 401 || (e.status === 403 && e.data && e.data.detail === "mfa_required")) {
-        console.warn("[Auth] Token invalid or MFA required, redirecting to login...");
+      // Hard auth failures — token is no longer valid
+      if (
+        e.status === 401 ||
+        (e.status === 403 && e.data && e.data.detail === "mfa_required")
+      ) {
+        console.warn("[Auth] Token rejected by server, redirecting to login.");
         _clearSession();
         window.location.replace("login.html");
         return null;
       }
-      
-      // Other errors (e.g. 429 rate limit, network error) — not fatal.
-      // Fall back to cached user — DO NOT redirect to login.
-      console.warn("[Auth] /auth/me failed, using cached user:", e.status || e);
+      // Soft failures (rate-limit, network) — fall back to cached data
+      console.warn("[Auth] /auth/me failed, falling back to cache:", e.status || e);
     }
 
-    // Return cached user. If there's truly no cached user despite a valid
-    // token, build a minimal object from the token payload itself.
-    const cached = this.getCurrentUser();
+    // Return cached user if available
+    var cached = this.getCurrentUser();
     if (cached) return cached;
 
-    // Last resort: decode email from token and return a minimal user object.
-    try {
-      const parts = this.getToken().split(".");
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-      if (payload.sub) {
-        const minimal = { email: payload.sub, username: payload.sub.split("@")[0], role: "user" };
-        localStorage.setItem("user", JSON.stringify(minimal));
-        return minimal;
-      }
-    } catch (e) { /* ignore */ }
+    // Last resort: synthesise a minimal user object from the token payload
+    var payload = this.decodeToken();
+    if (payload && payload.sub) {
+      var minimal = {
+        email: payload.sub,
+        username: payload.sub.split("@")[0],
+        role: payload.role || "user",
+      };
+      localStorage.setItem("user", JSON.stringify(minimal));
+      return minimal;
+    }
 
-    // Token is valid but we couldn't get any user data at all — rare edge case.
-    // Still don't redirect; return a placeholder so the dashboard can render.
+    // Valid token but zero user data — return a safe placeholder
     return { email: "unknown", username: "User", role: "user" };
+  },
+
+  // ── Route guard: admin only ───────────────────────────────────────────────
+
+  async requireAdmin() {
+    var user = await this.requireAuth();
+    if (!user) return null; // requireAuth already redirected
+
+    if (user.role !== "admin") {
+      window.location.replace("dashboard.html");
+      return null;
+    }
+
+    return user;
   },
 };
