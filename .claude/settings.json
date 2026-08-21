@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile gateway/routes/auth.py gateway/detection/account_risk.py gateway/db/schemas.py)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")"
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+# Place MaxMind GeoLite2 database here (gitignored — download separately):
+#   GeoLite2-City.mmdb
+#
+# Download: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
+# Required for real impossible-travel detection in gateway/detection/context_validation.py

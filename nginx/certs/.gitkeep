@@ -1,0 +1,7 @@
+# Place your TLS certificate files here (gitignored):
+#   cert.pem  — certificate
+#   key.pem   — private key
+#
+# Generate a self-signed cert for development:
+#   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#     -keyout key.pem -out cert.pem -subj "/CN=localhost"

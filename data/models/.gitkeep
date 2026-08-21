@@ -1,0 +1,3 @@
+# ML model files are saved here at runtime by gateway/detection/ml_anomaly.py
+# Format: user_<id>.pkl (joblib-serialised IsolationForest)
+# These files are gitignored — they are generated automatically.
