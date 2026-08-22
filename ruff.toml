@@ -1,0 +1,48 @@
+# Ruff configuration.
+#
+# Before this file existed, `ruff check .` ran with defaults and linted
+# everything in the tree, including _trash/ (the audit's recovery folder) and
+# migrations/. That mattered for more than noise: `ruff check --fix` would have
+# rewritten files in both, and migrations/ is off-limits.
+
+target-version = "py311"
+line-length = 120
+
+# Never lint or fix these.
+extend-exclude = [
+    "venv",
+    ".venv",
+    "_trash",        # audit recovery folder — contents are intentionally dead
+    "migrations",    # off-limits; env.py also carries a deliberate UTF-8 BOM
+    "data",
+    "frontend",
+    "node_modules",
+    ".ruff_cache",
+    "__pycache__",
+]
+
+[lint]
+# Default rule set (E, F) plus a few high-signal ones. Deliberately not enabling
+# the whole catalogue — the point is to catch real defects like the missing
+# import that broke reset_password, not to relitigate style across 39 files.
+select = ["E", "F", "W", "B", "UP"]
+
+ignore = [
+    "E501",  # line length — enforced by the formatter, not worth 100 warnings
+    "B008",  # function call in argument default: this is how FastAPI's
+             # Depends() is meant to be used, so it fires on every route.
+]
+
+[lint.per-file-ignores]
+# main.py loads .env before importing anything from gateway, because
+# gateway/db/database.py builds its engine and gateway/config.py instantiates
+# Settings() at module import time. The imports genuinely cannot move to the
+# top, so all 14 E402s here are correct-by-design.
+"gateway/main.py" = ["E402"]
+
+# Same ordering constraint, spelled out at length in the module docstring: the
+# environment has to be set before the first `gateway` import.
+"tests/conftest.py" = ["E402"]
+
+# Tests re-export fixtures and import names purely to assert they exist.
+"tests/**" = ["B011"]

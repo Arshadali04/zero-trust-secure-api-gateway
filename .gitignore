@@ -30,7 +30,11 @@ ENV/
 data/*.db
 data/logs/
 data/geoip/*.mmdb
-data/models/          # ML model files (joblib .pkl) — generated at runtime
+# ML model files (joblib .pkl + .sig) — generated at runtime.
+# The comment is on its own line: .gitignore has no inline comments, so
+# "data/models/    # ML model files" was a literal pattern containing spaces and
+# a '#', matched nothing, and left generated models showing up as untracked.
+data/models/
 *.sqlite3
 *.sqlite
 *.db

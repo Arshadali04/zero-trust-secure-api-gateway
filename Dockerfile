@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies first (layer caching)
-COPY Requirements.txt .
-RUN pip install -r Requirements.txt
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 # Application code
 COPY . .
