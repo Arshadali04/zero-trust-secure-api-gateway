@@ -1,19 +1,18 @@
 """
 gateway/db/schemas.py
 ----------------------
-Pydantic schemas (request/response models) + shared auth dependencies.
+Pydantic schemas — request/response models only.
+
+Auth dependencies live in `gateway/dependencies.py` and are imported from there
+directly. This module used to re-export them for backwards compatibility, which
+made `gateway/db/` import upward into the application layer: schemas → gateway
+.dependencies → gateway.db.database. Nothing in `gateway/db/` should reach
+outside it, and now nothing does.
 """
 
 import re
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from datetime import datetime
-from typing import Optional
-
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from gateway.db.database import get_db
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Password strength helper
@@ -51,7 +50,7 @@ class LoginRequest(BaseModel):
 class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
-    full_name: Optional[str] = None
+    full_name: str | None = None
 
 
 class UserCreate(UserBase):
@@ -71,8 +70,8 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
-    full_name: Optional[str] = None
+    username: str | None = Field(None, min_length=3, max_length=50)
+    full_name: str | None = None
 
     @field_validator("username")
     @classmethod
@@ -111,18 +110,86 @@ class UserResponse(UserBase):
     is_active: bool
     role: str
     created_at: datetime
-    last_login: Optional[datetime] = None
+    last_login: datetime | None = None
+    last_login_ip: str | None = None
+    risk_score: float | None = None
+    mfa_enabled: bool | None = None
+    # Adaptive security policy state (for the dashboard)
+    stepup_required: bool | None = None
+    account_frozen_until: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
     expires_in: int
-    user: Optional[UserResponse] = None
+    user: UserResponse | None = None
     mfa_required: bool = False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API key schemas
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Human-friendly label")
+    scopes: list[str] = Field(
+        default_factory=lambda: ["all"],
+        description='Scopes: "all" or "proxy:<service>", e.g. ["proxy:data"]',
+    )
+    expires_in_days: int | None = Field(None, ge=1, le=365, description="Optional expiry")
+
+
+class ApiKeyUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    scopes: list[str] | None = None
+
+
+class ApiKeyResponse(BaseModel):
+    id: int
+    name: str
+    key_prefix: str
+    scopes: list[str]
+    last_used_at: datetime | None = None
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime
+
+
+class ApiKeyCreated(ApiKeyResponse):
+    key: str   # full plaintext — returned exactly once
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Service registration schemas
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ServiceCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80, description="Unique service slug, e.g. 'data'")
+    upstream_url: str = Field(..., min_length=1, max_length=500, description="Backend URL, e.g. 'http://127.0.0.1:8001'")
+    description: str | None = None
+
+
+class ServiceUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=80)
+    upstream_url: str | None = Field(None, min_length=1, max_length=500)
+    description: str | None = None
+    is_active: bool | None = None
+
+
+class ServiceResponse(BaseModel):
+    id: int
+    name: str
+    upstream_url: str
+    description: str | None = None
+    is_active: bool
+    owner_user_id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -131,152 +198,28 @@ class TokenResponse(BaseModel):
 
 class AuditLogResponse(BaseModel):
     id: int
-    user_id: Optional[int]
+    user_id: int | None
     action: str
     method: str
-    resource: Optional[str]
+    resource: str | None
     ip_address: str
-    user_agent: Optional[str]
-    status_code: Optional[int]
-    event_type: Optional[str] = None
+    user_agent: str | None
+    status_code: int | None
+    event_type: str | None = None
     timestamp: datetime
-    details: Optional[str]
+    details: str | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityEventResponse(BaseModel):
     id: int
     threat_type: str
     ip_address: str
-    endpoint: Optional[str]
+    endpoint: str | None
+    payload: str | None = None
     risk_score: float
     status: str
     timestamp: datetime
 
-    class Config:
-        from_attributes = True
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Auth dependencies  (import here to avoid circular imports)
-# ─────────────────────────────────────────────────────────────────────────────
-
-_bearer = HTTPBearer(auto_error=False)
-
-
-def _get_current_user_email(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
-) -> str:
-    from gateway.core.security import SecurityManager
-
-    token = credentials.credentials if credentials else request.query_params.get("token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    payload = SecurityManager.verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-    email = payload.get("sub")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing subject",
-        )
-    return email
-
-
-async def get_current_user(
-    email: str = Depends(_get_current_user_email),
-    db: AsyncSession = Depends(None),  # overridden below
-):
-    """Dependency: returns the authenticated User ORM object."""
-    from gateway.db.models import User
-
-    # Can't use Depends(get_db) here directly because of circular import timing;
-    # callers should use require_authenticated_user below instead.
-    raise NotImplementedError  # not used directly
-
-
-async def require_authenticated_user(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    FastAPI dependency.
-    Validates the Bearer token and returns the User ORM object.
-    Raises 401 if token is invalid, 403 if account is inactive, 
-    or 403 if MFA is enabled but the token is not MFA-verified.
-    """
-    from gateway.core.security import SecurityManager
-    from gateway.db.models import User
-
-    # 1. Try to get token from header
-    token = credentials.credentials if credentials else None
-    
-    # 2. Fallback to query parameter (convenient for browser demos)
-    if not token:
-        token = request.query_params.get("token")
-        
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    payload = SecurityManager.verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-    email = payload.get("sub")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing subject",
-        )
-
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
-
-    # MFA Enforcement: If MFA is enabled, the token must be MFA-verified,
-    # EXCEPT when hitting the MFA verification or disable endpoints.
-    if user.mfa_enabled:
-        path = request.url.path
-        if path not in ("/auth/mfa/verify", "/auth/mfa/status", "/auth/mfa/disable"):
-            if not payload.get("mfa_verified"):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, 
-                    detail="mfa_required"
-                )
-
-    return user
-
-
-async def require_admin_user(
-    user=Depends(require_authenticated_user),
-):
-    """
-    FastAPI dependency.
-    Same as require_authenticated_user but also enforces role == 'admin'.
-    Raises 403 if the user is not an admin.
-    """
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-    return user
+    model_config = ConfigDict(from_attributes=True)
