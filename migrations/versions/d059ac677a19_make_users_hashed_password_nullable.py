@@ -1,14 +1,18 @@
-"""Make users.hashed_password nullable
+"""Make users.hashed_password nullable (OAuth-only accounts have no password)
 
 Revision ID: d059ac677a19
-Revises:
+Revises: a3536f8a2d84
 Create Date: 2026-04-19 20:15:26.032251
+
+Re-pointed to follow the initial schema. It previously declared
+``down_revision = None`` while a3536f8a2d84 ("initial schema") claimed to follow
+*it*, so the chain built ``users`` only after trying to ALTER it.
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "d059ac677a19"
-down_revision = None
+down_revision = "a3536f8a2d84"
 branch_labels = None
 depends_on = None
 
