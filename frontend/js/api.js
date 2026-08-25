@@ -41,7 +41,7 @@ window.API = {
 
   // ── Core request ─────────────────────────────────────────────────────────
 
-  async request(method, endpoint, body) {
+  async request(method, endpoint, body, _isRetry) {
     if (body === undefined) body = null;
 
     var options = {
@@ -81,12 +81,27 @@ window.API = {
     }
 
     if (!response.ok) {
-      // 401 — try refreshing the token once before forcing re-login
-      if (response.status === 401) {
-        var refreshed = await this._tryRefresh();
+      // 401 — refresh the access token and retry, but only ONCE.
+      //
+      // This block used to recurse without any guard, even though its own
+      // comment claimed "once". Whenever the 401 was not actually about the
+      // access token — a wrong TOTP code on /auth/mfa/verify was the real
+      // case — the refresh succeeded (the session was fine), the identical
+      // request was re-issued, and it 401'd again, forever. Every iteration
+      // rotated the refresh-token family. It could not even fail closed: the
+      // logout branch below is unreachable while refresh keeps succeeding, so
+      // the page just hung with its button stuck on "Verifying…" and the
+      // caller's catch block never ran.
+      //
+      // _isRetry is internal — no caller passes it.
+      if (response.status === 401 && !_isRetry) {
+        var refreshed = await this._tryRefresh(token);
         if (refreshed) {
-          return this.request(method, endpoint, body);
+          return this.request(method, endpoint, body, true);
         }
+      }
+
+      if (response.status === 401) {
         // Only redirect to login when there was an active session (token was
         // present). If there was no token this is a credential-check failure
         // (e.g. wrong password on /auth/login) — throw so the caller can show
@@ -123,27 +138,72 @@ window.API = {
 
   // ── Token refresh ─────────────────────────────────────────────────────────
 
-  async _tryRefresh() {
-    var refreshToken = localStorage.getItem("refresh_token");
-    if (!refreshToken) return false;
-    try {
-      var resp = await fetch(this._base + "/auth/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-      if (!resp.ok) return false;
-      var data = await resp.json();
-      if (data && data.access_token) {
-        localStorage.setItem("token", data.access_token);
-        if (data.refresh_token) {
-          localStorage.setItem("refresh_token", data.refresh_token);
+  // Shared promise for an in-flight /auth/refresh call. Refresh tokens are
+  // single-use with family reuse-detection on the server, so two concurrent
+  // refreshes are not merely wasteful — the second one presents an already
+  // consumed token, rotate_refresh_token() reads that as theft, deletes the
+  // whole family and bumps token_version. The user is hard-logged-out of every
+  // session and a false "REFRESH TOKEN REUSE DETECTED" incident lands in the
+  // security log. All it took was two requests 401'ing at the same moment.
+  _refreshInFlight: null,
+
+  /**
+   * Refresh the access token. Returns true if a usable token is now in
+   * localStorage.
+   *
+   * @param tokenAtRequestTime the access token the caller actually sent. If it
+   *   no longer matches what is in localStorage, somebody else has already
+   *   refreshed and there is nothing to do — report success so the caller
+   *   retries with the new token instead of consuming a second refresh token.
+   *
+   * Limitation, stated plainly: this closes the race within one page only.
+   * Two browser tabs have separate _refreshInFlight but share localStorage, so
+   * the tokenAtRequestTime check helps there but does not eliminate the window
+   * where both tabs read the refresh token before either writes. Closing that
+   * properly needs a cross-context lock (navigator.locks). Left as a known gap
+   * rather than papered over.
+   */
+  async _tryRefresh(tokenAtRequestTime) {
+    if (
+      tokenAtRequestTime &&
+      localStorage.getItem("token") !== tokenAtRequestTime
+    ) {
+      return true;
+    }
+
+    if (this._refreshInFlight) return this._refreshInFlight;
+
+    var self = this;
+    this._refreshInFlight = (async function () {
+      var refreshToken = localStorage.getItem("refresh_token");
+      if (!refreshToken) return false;
+      try {
+        var resp = await fetch(self._base + "/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!resp.ok) return false;
+        var data = await resp.json();
+        if (data && data.access_token) {
+          localStorage.setItem("token", data.access_token);
+          if (data.refresh_token) {
+            localStorage.setItem("refresh_token", data.refresh_token);
+          }
+          return true;
         }
-        return true;
+        return false;
+      } catch (_) {
+        return false;
       }
-      return false;
-    } catch (_) {
-      return false;
+    })();
+
+    try {
+      return await this._refreshInFlight;
+    } finally {
+      // Safe to clear: any caller that arrived while this was pending already
+      // holds a reference to the same promise via the early return above.
+      this._refreshInFlight = null;
     }
   },
 
@@ -162,8 +222,6 @@ window.API = {
 
   getMe: () => API.request("GET", "/auth/me"),
 
-  updateMe: (data) => API.request("PATCH", "/auth/me", data),
-
   updatePassword: (currentPassword, newPassword) =>
     API.request("PATCH", "/auth/me/password", {
       current_password: currentPassword,
@@ -180,8 +238,6 @@ window.API = {
     }),
 
   // ── MFA ───────────────────────────────────────────────────────────────────
-
-  getMfaStatus: () => API.request("GET", "/auth/mfa/status"),
 
   setupMfa: () => API.request("POST", "/auth/mfa/setup"),
 
@@ -203,8 +259,6 @@ window.API = {
       ...(expiresInDays ? { expires_in_days: expiresInDays } : {}),
     }),
 
-  updateApiKey: (id, data) => API.request("PATCH", "/api-keys/" + id, data),
-
   revokeApiKey: (id) => API.request("POST", "/api-keys/" + id + "/revoke"),
 
   rotateApiKey: (id) => API.request("POST", "/api-keys/" + id + "/rotate"),
@@ -214,9 +268,6 @@ window.API = {
   getServices: () => API.request("GET", "/services"),
 
   createService: (data) => API.request("POST", "/services", data),
-
-  updateService: (id, data) =>
-    API.request("PATCH", "/services/" + id, data),
 
   revokeService: (id) =>
     API.request("POST", "/services/" + id + "/revoke"),
@@ -271,5 +322,16 @@ window.API = {
 
   getHealth: () => API.request("GET", "/health"),
 
-  getReady: () => API.request("GET", "/ready"),
+  // Audit 2026-08-22 — five helpers removed here as dead code:
+  //   updateMe      → PATCH  /auth/me
+  //   getMfaStatus  → GET    /auth/mfa/status
+  //   updateApiKey  → PATCH  /api-keys/{id}
+  //   updateService → PATCH  /services/{id}
+  //   getReady      → GET    /ready
+  // All five backend routes exist and still work; nothing in the UI ever
+  // called these wrappers, so they were surface area that looked supported
+  // and wasn't. Five *other* unused wrappers (getMe, updatePassword, setupMfa,
+  // verifyMfaSetup, disableMfa) were kept instead and their inline
+  // `API.request(...)` callers repointed at them — those endpoints are live in
+  // the UI, so the wrapper was the right layer and the duplication was the bug.
 };

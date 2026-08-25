@@ -117,6 +117,7 @@ window.Auth = {
       var raw = window.location.hash.replace(/^#/, "");
       var params = new URLSearchParams(raw);
       var token = params.get("token");
+      var refreshToken = params.get("refresh_token");
       var email = params.get("user");
       var error = params.get("error");
       var msg   = params.get("msg");
@@ -143,6 +144,10 @@ window.Auth = {
         return { mfa_required: true, temp_token: token, email: email };
       }
 
+      // The OAuth callbacks now return a refresh token alongside the access
+      // token. Without storing it, an OAuth user was hard-logged-out after the
+      // 30-minute access-token lifetime with no silent-refresh path.
+
       // Build a minimal user from the email query param as a fast fallback
       var user = null;
       if (email) {
@@ -154,7 +159,7 @@ window.Auth = {
       // Temporarily store the token so API.request picks it up
       localStorage.setItem("token", token);
       try {
-        var fresh = await API.request("GET", "/auth/me");
+        var fresh = await API.getMe();
         if (fresh && typeof fresh === "object") user = fresh;
       } catch (fetchErr) {
         // /auth/me failed — use the email-derived fallback; not fatal
@@ -162,7 +167,7 @@ window.Auth = {
         localStorage.removeItem("token");
       }
 
-      this.finishLogin(token, user);
+      this.finishLogin(token, user, refreshToken);
       return true;
 
     } catch (e) {
@@ -185,26 +190,6 @@ window.Auth = {
     }
   },
 
-  // ── Sync user from backend ────────────────────────────────────────────────
-
-  async syncCurrentUser() {
-    if (!this.getToken()) {
-      _clearSession();
-      return null;
-    }
-    try {
-      var me = await API.request("GET", "/auth/me");
-      if (me && typeof me === "object") {
-        localStorage.setItem("user", JSON.stringify(me));
-        return me;
-      }
-      return null;
-    } catch (e) {
-      console.warn("[Auth] syncCurrentUser failed:", e);
-      return null;
-    }
-  },
-
   // ── Logout ────────────────────────────────────────────────────────────────
 
   logout() {
@@ -222,7 +207,7 @@ window.Auth = {
 
     // Try to get fresh user data from the backend
     try {
-      var fresh = await API.request("GET", "/auth/me");
+      var fresh = await API.getMe();
       if (fresh && typeof fresh === "object") {
         localStorage.setItem("user", JSON.stringify(fresh));
         return fresh;

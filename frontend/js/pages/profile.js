@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       try {
-        await API.request('PATCH', '/auth/me/password', { current_password: current, new_password: newPwd });
+        await API.updatePassword(current, newPwd);
         showFeedback(feedback, 'Password updated successfully!', 'success');
         passwordForm.reset();
         updateStrengthBar();
@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (enableMfaBtn) {
     enableMfaBtn.addEventListener('click', async () => {
       try {
-        const result = await API.request('POST', '/auth/mfa/setup');
+        const result = await API.setupMfa();
         if (result && result.secret) {
           $('mfaSecretText').value = result.secret;
           const qrSrc = result.qr_code_base64
@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const feedback = $('mfaVerifyFeedback');
 
       try {
-        await API.request('POST', '/auth/mfa/verify-setup', { code });
+        await API.verifyMfaSetup(code);
         showFeedback(feedback, 'MFA activated!', 'success');
         setTimeout(() => {
           $('mfaSetupState').style.display = 'none';
@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const feedback = $('mfaDisableFeedback');
 
       try {
-        await API.request('POST', '/auth/mfa/disable', { code });
+        await API.disableMfa(code);
         showFeedback(feedback, 'MFA disabled', 'success');
         setTimeout(() => {
           $('mfaEnabledState').style.display = 'none';

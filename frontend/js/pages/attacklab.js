@@ -476,8 +476,17 @@ function connectWS() {
     proto === 'https' ? 'wss' : 'ws'
   );
 
+  // The /ws/attack-lab endpoint is authenticated. Browsers cannot set an
+  // Authorization header on a WebSocket handshake, so the access token is
+  // passed as a query parameter and verified server-side before accept().
+  const token = localStorage.getItem('token');
+  if (!token) {
+    setWsStatus('error');
+    return;
+  }
+
   try {
-    ws = new WebSocket(wsBase + '/ws/attack-lab');
+    ws = new WebSocket(wsBase + '/ws/attack-lab?token=' + encodeURIComponent(token));
   } catch (e) {
     setWsStatus('error');
     reconnectTimer = setTimeout(connectWS, 3000);

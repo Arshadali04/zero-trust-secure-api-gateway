@@ -1,4 +1,4 @@
-﻿const UI = {
+const UI = {
     showNotification(message, type = 'info', duration = 3000) {
         const notification = document.getElementById('notification');
         if (!notification) return;
