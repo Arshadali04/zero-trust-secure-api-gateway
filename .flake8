@@ -1,0 +1,35 @@
+# flake8 configuration.
+#
+# CI runs:
+#   flake8 gateway/ tests/ --max-line-length=120 --ignore=E501,W503,E203 --count
+#
+# That --ignore replaces this file's `ignore`, but `extend-ignore` and
+# `per-file-ignores` are additive, so the exemptions below still apply. They are
+# deliberately kept in sync with ruff.toml, which carries the same reasoning.
+
+[flake8]
+extend-ignore =
+# Alignment whitespace. The WAF pattern table in middleware/waf.py, the LIMITS
+# dict in middleware/rate_limit.py and the auto-block constants in
+# middleware/ip_blocker.py are column-aligned on purpose; collapsing each run
+# to a single space makes those tables harder to scan for no benefit.
+    E241,
+    E221
+
+per-file-ignores =
+# main.py loads .env before importing anything from gateway, because
+# gateway/db/database.py builds its engine and gateway/config.py instantiates
+# Settings() at module import time. The imports genuinely cannot move to the
+# top of the file. ruff.toml carries the identical per-file exemption.
+    gateway/main.py:E402
+
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    _trash,
+    migrations,
+    data,
+    node_modules,
+    .ruff_cache
