@@ -1,6 +1,8 @@
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, Float, Text, Index
+from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.sql import func
+
 from gateway.db.database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -42,6 +44,7 @@ class User(Base):
     def __repr__(self):
         return f"<User {self.email}>"
 
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     __table_args__ = (
@@ -60,6 +63,7 @@ class AuditLog(Base):
     user_agent = Column(String(500), nullable=True)
     details = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
 
 class SecurityEvent(Base):
     __tablename__ = "security_events"

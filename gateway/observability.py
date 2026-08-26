@@ -28,10 +28,10 @@ def setup_telemetry(app):
 
     try:
         from opentelemetry import trace
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         from gateway.config import APP_VERSION
 

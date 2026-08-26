@@ -5,10 +5,10 @@ FastAPI auth dependencies extracted from schemas.py for clean separation
 of concerns. Schemas define data shapes; dependencies enforce access control.
 """
 
-from datetime import datetime, UTC
 import logging
+from datetime import UTC, datetime
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -98,8 +98,8 @@ async def require_authenticated_user(
 
     path = request.url.path
 
-    from gateway.detection.account_risk import is_user_frozen
     from gateway.core.client_ip import get_client_ip
+    from gateway.detection.account_risk import is_user_frozen
     _freeze_ip = get_client_ip(request)
     if await is_user_frozen(db, user.id, _freeze_ip):
         raise HTTPException(
@@ -194,9 +194,9 @@ async def require_api_key(
     Authenticate a machine client with an X-API-Key header.
     Returns a principal dict: {"mode": "apikey", "user": User, "key": ApiKey, "scopes": list[str]}
     """
-    from gateway.db.models import ApiKey, User, SecurityEvent
+    from gateway.core.apikeys import deserialize_scopes, is_ip_blocked, record_failure
     from gateway.core.security import hash_api_key
-    from gateway.core.apikeys import is_ip_blocked, record_failure, deserialize_scopes
+    from gateway.db.models import ApiKey, SecurityEvent, User
 
     api_key = request.headers.get("X-API-Key")
     if not api_key:

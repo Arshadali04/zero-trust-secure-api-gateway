@@ -1,8 +1,10 @@
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
-from gateway.config import settings
 import logging
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
+
+from gateway.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 Base = declarative_base()
+
 
 async def _apply_column_migrations(conn) -> None:
     """
@@ -138,6 +141,7 @@ async def init_db():
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         raise
+
 
 async def get_db():
     """Dependency to get database session"""
