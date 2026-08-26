@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from gateway.db.database import Base
 from gateway.detection.account_risk import (
     _naive_utc_now, elevate_account_risk, is_user_frozen,
-    decay_and_persist, DECAY_HALF_LIFE_SECONDS, RISK_LOW_AFTER_DAYS,
+    decay_and_persist, RISK_LOW_AFTER_DAYS,
+    ELEVATE_COOLDOWN_SECONDS,
 )
 
 
@@ -72,7 +73,17 @@ class TestRiskLifecycle:
         assert user.stepup_required is True
 
         # Phase 2: Bypass the elevation cooldown, then elevate to critical -> freeze
-        user.risk_updated_at = _naive_utc_now() - timedelta(seconds=3)
+        #
+        # The cooldown anchor is risk_elevated_at, NOT risk_updated_at. Only
+        # elevate_account_risk writes risk_elevated_at; risk_updated_at is the
+        # decay anchor and gets re-stamped by decay_and_persist on every
+        # /auth/me hit, which is why it can no longer gate the cooldown.
+        # Rewinding only risk_updated_at (as this test used to) left the
+        # cooldown in force, so this second elevation was silently discarded
+        # and risk stayed at the decayed 0.60 instead of climbing to 0.90.
+        past = _naive_utc_now() - timedelta(seconds=ELEVATE_COOLDOWN_SECONDS + 1)
+        user.risk_updated_at = past
+        user.risk_elevated_at = past
         await session.commit()
         risk = await elevate_account_risk(session, user.id, 0.30, ip="127.0.0.1")
         assert risk >= 0.85

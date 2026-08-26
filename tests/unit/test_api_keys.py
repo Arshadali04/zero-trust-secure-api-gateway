@@ -7,8 +7,6 @@ Unit tests for:
   - Scope helpers
 """
 
-import time
-import pytest
 
 from gateway.core.security import (
     generate_api_key,
@@ -21,7 +19,6 @@ from gateway.core.apikeys import (
     record_failure,
     reset_ip,
     FAIL_LIMIT,
-    FAIL_WINDOW_SECONDS,
     serialize_scopes,
     deserialize_scopes,
     scopes_allow,

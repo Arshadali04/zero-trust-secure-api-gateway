@@ -1,18 +1,16 @@
 """Tests for gateway/detection/account_risk.py — risk decay, freeze lifecycle, policy enforcement."""
 
-import asyncio
 import pytest
 import pytest_asyncio
-from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, text
+from datetime import timedelta
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from gateway.db.database import Base
-from gateway.db.models import User, AccountFreeze, SecurityEvent
+from gateway.db.models import User, AccountFreeze
 from gateway.detection.account_risk import (
     _decayed, _naive_utc_now, is_user_frozen, apply_risk_policy,
-    elevate_account_risk, decay_and_persist, DECAY_HALF_LIFE_SECONDS,
-    RISK_LOW_AFTER_DAYS,
+    decay_and_persist, RISK_LOW_AFTER_DAYS,
 )
 
 

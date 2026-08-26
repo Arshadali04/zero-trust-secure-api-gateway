@@ -6,7 +6,6 @@ Uses a fake httpx.AsyncClient so it runs without a live gateway.
 """
 
 import asyncio
-import sys
 import types
 from unittest.mock import patch
 
@@ -19,6 +18,13 @@ class FakeResponse:
         self.headers = headers or {}
 
 
+class FakeLimits:
+    """attack_sim builds its client with httpx.Limits(...), so the fake module
+    has to expose it or _get_client raises AttributeError."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+
 class FakeClient:
     def __init__(self, *args, **kwargs):
         pass
@@ -28,6 +34,11 @@ class FakeClient:
 
     async def __aexit__(self, *args):
         return False
+
+    async def aclose(self):
+        # AttackLab.stop() closes the run-scoped client; without this the
+        # teardown path raises on the fake.
+        return None
 
     async def request(self, method, url, **kw):
         # The real WAF scans bodies AND headers — mirror that so tests are deterministic
@@ -43,9 +54,25 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def _fake_httpx():
+    """Replace httpx *on the attack_sim module*, not in sys.modules.
+
+    This fixture used to do patch.dict(sys.modules, {"httpx": fake}), which only
+    affects `import httpx` statements executed while the patch is active.
+    gateway/detection/attack_sim.py:27 imports httpx at module scope, and
+    conftest imports gateway.main, which pulls in the attack_lab routes, which
+    import attack_sim — all before the first test runs. So the real httpx was
+    already bound to attack_sim's globals and the fake never applied: the engine
+    fired real requests at BASE_URL 127.0.0.1:8000, nothing was listening under
+    pytest, every request errored (blocked stayed 0) and the slow connect
+    failures ran the loop past its own deadline so `running` was still True at
+    3.5s. That is the whole reason both of these tests failed.
+
+    Patching the attribute works regardless of import order.
+    """
     fake = types.ModuleType("httpx")
     fake.AsyncClient = FakeClient
-    with patch.dict(sys.modules, {"httpx": fake}):
+    fake.Limits = FakeLimits
+    with patch("gateway.detection.attack_sim.httpx", fake):
         yield
 
 

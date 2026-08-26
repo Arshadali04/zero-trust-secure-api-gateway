@@ -7,7 +7,7 @@ import pytest
 class TestRateLimiting:
     async def test_auth_endpoint_rate_limit(self, client):
         """Auth endpoints should be rate-limited at 10 req/60s."""
-        for i in range(10):
+        for _ in range(10):
             await client.post("/auth/login", json={
                 "email": "ratelimit@example.com", "password": "wrong12345"
             })
