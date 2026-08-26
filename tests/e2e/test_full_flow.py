@@ -23,7 +23,6 @@ import socketserver
 import pytest
 import pytest_asyncio
 
-from tests.conftest import VALID_USER
 
 
 # ── Tiny upstream used by the proxy ──────────────────────────────────────────
@@ -57,11 +56,12 @@ def mock_upstream():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    import gateway.routes.proxy as proxy_mod
-    original = proxy_mod.UPSTREAM_ROUTES.copy()
-    proxy_mod.UPSTREAM_ROUTES["data"] = f"http://127.0.0.1:{port}"
+    # Deliberately does NOT write into proxy.UPSTREAM_ROUTES. The journey below
+    # registers "data" itself at step 2 via POST /services, so the DB row is the
+    # route. Injecting a static entry as well defeated step 9: after the service
+    # is deleted the DB has no row, so the resolver fell back to the static map
+    # and the proxy answered 200 where the test asserts 404.
     yield f"http://127.0.0.1:{port}"
-    proxy_mod.UPSTREAM_ROUTES.update(original)
     server.shutdown()
 
 

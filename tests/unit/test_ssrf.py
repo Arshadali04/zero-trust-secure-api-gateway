@@ -1,7 +1,6 @@
 """Tests for SSRF protection in service registration and proxy routing."""
 
 import pytest
-import pytest_asyncio
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +36,12 @@ class TestSSRFProtection:
         """Only http/https schemes allowed."""
         resp = await client.post("/services", json={
             "name": "ssrf-file",
-            "upstream_url": "file:///etc/passwd",
+            # NOT file:///etc/passwd — that string trips the WAF's
+            # path_traversal rule, which blocks with 403 in middleware before
+            # the SSRF validator ever runs, so the test proved nothing about
+            # scheme validation. ftp:// is an equally invalid scheme with no
+            # traversal indicator, so the request reaches the validator.
+            "upstream_url": "ftp://example.com/data",
         }, headers=auth_headers)
         assert resp.status_code == 400
         assert "http" in resp.json()["detail"].lower()

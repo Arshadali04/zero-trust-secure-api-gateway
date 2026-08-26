@@ -16,7 +16,6 @@ import socketserver
 import pytest
 import pytest_asyncio
 
-from tests.conftest import VALID_USER
 from gateway.core.apikeys import reset_ip
 
 
@@ -52,9 +51,15 @@ def mock_upstream():
     thread.start()
 
     import gateway.routes.proxy as proxy_mod
+    # These tests proxy without registering a service, so they do need a static
+    # route. _DEFAULT_ROUTES is empty now, so this injection is the only source.
     original = proxy_mod.UPSTREAM_ROUTES.copy()
     proxy_mod.UPSTREAM_ROUTES["data"] = f"http://127.0.0.1:{port}"
     yield
+    # clear-then-update, not update alone: update() cannot remove the "data" key
+    # this fixture added, so the static route used to leak into every later
+    # module for the rest of the session.
+    proxy_mod.UPSTREAM_ROUTES.clear()
     proxy_mod.UPSTREAM_ROUTES.update(original)
     server.shutdown()
 
@@ -154,12 +159,19 @@ class TestAPIKeyLifecycle:
 
 class TestProxyViaAPIKey:
     async def _create_key(self, client, auth_headers, scopes=None):
+        # Unique name per call. create_api_key returns 400 for a duplicate
+        # active name under the same user, and the test DB is session-scoped,
+        # so the key made by test_proxy_accessible_with_api_key was still
+        # active when test_proxy_scope_enforced asked for "proxy-test" again.
+        # That 400 was mistaken for a scope-enforcement failure.
+        import uuid
+        name = f"proxy-test-{uuid.uuid4().hex[:8]}"
         resp = await client.post(
             "/api-keys",
             headers=auth_headers,
-            json={"name": "proxy-test", "scopes": scopes or ["all"]},
+            json={"name": name, "scopes": scopes or ["all"]},
         )
-        assert resp.status_code == 201
+        assert resp.status_code == 201, resp.text
         return resp.json()["key"]
 
     @pytest.mark.asyncio

@@ -10,7 +10,10 @@ class TestMiddlewareOrdering:
         resp = await client.post("/api/v1/data/test", json={
             "query": "SELECT * FROM users; DROP TABLE users;--"
         })
-        assert resp.status_code == 400
+        # 403, not 400: waf.py:240-241 answers every block with
+        # JSONResponse(status_code=403), and tests/unit/test_waf.py asserts 403
+        # throughout. This test asserted 400 and had never passed.
+        assert resp.status_code == 403
         assert resp.headers.get("x-waf-blocked")
 
     async def test_risk_score_header_on_normal_request(self, client):
