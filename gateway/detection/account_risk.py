@@ -28,12 +28,12 @@ account stay flagged" window off that number was overestimating badly.
 """
 
 import logging
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 
 from gateway.config import settings
-from gateway.db.models import User, SecurityEvent, AccountFreeze
+from gateway.db.models import AccountFreeze, SecurityEvent, User
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,8 @@ ELEVATE_COOLDOWN_SECONDS = 2.0
 # considered fully recovered and reset to 0.0 (Low).  The exponential decay
 # with a 4-hour half-life already brings any score to ~0 after 7 days, but
 # the explicit cutoff makes the recovery deterministic and demo-friendly.
+
+
 def _risk_low_after_days() -> int:
     """Resolved per call, like the other four thresholds.
 

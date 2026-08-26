@@ -1,31 +1,34 @@
+import logging
+import os
+from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-import os
-import logging
-from contextlib import asynccontextmanager
-from dotenv import load_dotenv
 
 # Load env FIRST — oauth secrets override base .env
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env.oauth"), override=True)
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=False)
 
-from gateway.config import settings, APP_VERSION
+from gateway.config import APP_VERSION, settings
 from gateway.db.database import init_db
-from gateway.routes import auth, oauth as oauth_routes, health, user
-from gateway.routes import mfa as mfa_routes
-from gateway.routes import proxy as proxy_routes
-from gateway.routes import apikeys as apikeys_routes
-from gateway.routes import services as services_routes
-from gateway.routes import attack_lab as attack_lab_routes
-from gateway.middleware.rate_limit import RateLimitMiddleware
-from gateway.middleware.logging import RequestLoggingMiddleware
-from gateway.middleware.waf import WAFMiddleware
-from gateway.middleware.risk_scoring import RiskScoringMiddleware
 from gateway.middleware.ip_blocker import IPBlockerMiddleware
+from gateway.middleware.logging import RequestLoggingMiddleware
+from gateway.middleware.rate_limit import RateLimitMiddleware
+from gateway.middleware.risk_scoring import RiskScoringMiddleware
+from gateway.middleware.waf import WAFMiddleware
+from gateway.routes import apikeys as apikeys_routes
+from gateway.routes import attack_lab as attack_lab_routes
+from gateway.routes import auth, health
+from gateway.routes import mfa as mfa_routes
+from gateway.routes import oauth as oauth_routes
+from gateway.routes import proxy as proxy_routes
+from gateway.routes import services as services_routes
+from gateway.routes import user
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,7 +48,7 @@ def _start_demo_backend():
         return
 
     try:
-        from gateway.demo.mock_backend import ensure_mock_running, SERVICE_NAME
+        from gateway.demo.mock_backend import SERVICE_NAME, ensure_mock_running
         base_url = ensure_mock_running()
         if base_url:
             # Register a static demo route so no DB row is needed
@@ -111,7 +114,8 @@ app = FastAPI(
 )
 
 # ── Observability (OpenTelemetry + Prometheus) ──────────────────────────────
-from gateway.observability import setup_telemetry, setup_prometheus
+from gateway.observability import setup_prometheus, setup_telemetry
+
 setup_telemetry(app)
 setup_prometheus(app)
 
@@ -175,6 +179,8 @@ app.add_middleware(RequestLoggingMiddleware)
 # 7. Security headers — outermost so they are applied to every response.
 #    CSP is deliberately permissive (the demo frontend uses inline scripts);
 #    the other headers provide real hardening.
+
+
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -211,6 +217,7 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
         return response
+
 
 app.add_middleware(_SecurityHeadersMiddleware)
 

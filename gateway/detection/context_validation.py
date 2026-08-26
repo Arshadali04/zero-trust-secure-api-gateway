@@ -60,7 +60,7 @@ import ipaddress
 import logging
 import math
 import os
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -236,6 +236,7 @@ async def check_impossible_travel(
         distance_km (float or None), distance (kept for backwards compatibility)
     """
     from sqlalchemy import select
+
     from gateway.db.models import User
 
     result = await db.execute(select(User).where(User.id == user_id))

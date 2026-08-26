@@ -26,15 +26,15 @@ import os
 import re
 from collections import OrderedDict, defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
 from datetime import UTC
+from threading import Lock
 
 logger = logging.getLogger(__name__)
 
 # scikit-learn is optional — fall back to rule-based detection if missing
 try:
-    from sklearn.ensemble import IsolationForest
     import joblib
+    from sklearn.ensemble import IsolationForest
     SKLEARN_AVAILABLE = True
 except Exception:  # pragma: no cover
     SKLEARN_AVAILABLE = False

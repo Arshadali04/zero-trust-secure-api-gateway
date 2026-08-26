@@ -14,7 +14,7 @@ fallback when scikit-learn is unavailable.
 import logging
 import time
 from collections import defaultdict, deque
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ async def update_behavior_profile(
       - IsolationForest per-user outlier score below threshold → ml_anomaly
     """
     from sqlalchemy import select
+
     from gateway.db.models import BehaviorProfile
     from gateway.detection.ml_anomaly import score_user
 
