@@ -1,8 +1,9 @@
 import hashlib
 import secrets
-from passlib.context import CryptContext
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
+
 import jwt
+from passlib.context import CryptContext
 
 # Use argon2 instead of bcrypt (no 72-byte limit)
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -46,6 +47,7 @@ def verify_token_for_request(request, token: str | None) -> dict | None:
     payload = SecurityManager.verify_token(token)
     setattr(state, _TOKEN_CACHE_ATTR, (token, payload))
     return payload
+
 
 class SecurityManager:
     @staticmethod

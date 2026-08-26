@@ -11,11 +11,11 @@ Helpers for API-key authentication:
 """
 
 import json
-import time
 import logging
+import time
 from collections import defaultdict, deque
-from threading import Lock
 from collections.abc import Iterable
+from threading import Lock
 
 logger = logging.getLogger(__name__)
 

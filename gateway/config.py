@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_SECRET = "your-secret-key-change-this-in-production-min-32-chars"
 
@@ -16,6 +16,7 @@ _DEFAULT_SECRET = "your-secret-key-change-this-in-production-min-32-chars"
 # should not be able to lie about its own version via an env var. On release,
 # bump this and the README badge (the badge is a static image URL).
 APP_VERSION = "2.0.0"
+
 
 class Settings(BaseSettings):
     """Application settings"""
@@ -98,5 +99,6 @@ class Settings(BaseSettings):
         return self
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
 
 settings = Settings()

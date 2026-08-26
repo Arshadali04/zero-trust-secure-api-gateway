@@ -13,13 +13,15 @@ Security properties:
 """
 
 import hashlib
-import secrets
 import logging
-from datetime import datetime, timedelta, UTC
+import secrets
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gateway.config import settings
+from gateway.core.security import SecurityManager
 # RefreshToken and User both live in gateway.db.models — that module is the one
 # place the schema is declared. Imported at module level rather than inside each
 # function: gateway/db/ imports nothing from gateway/core/, so there is no cycle
@@ -27,8 +29,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # load-bearing — migrations/versions/a3536f8a2d84_initial_schema.py registers
 # the table via `import gateway.core.tokens`, and that must keep working.
 from gateway.db.models import RefreshToken, User
-from gateway.core.security import SecurityManager
-from gateway.config import settings
 
 logger = logging.getLogger(__name__)
 

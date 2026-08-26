@@ -27,9 +27,9 @@ Upstream verification (pseudo-code):
 
 import hashlib
 import hmac
-import time
-import os
 import logging
+import os
+import time
 
 logger = logging.getLogger(__name__)
 
