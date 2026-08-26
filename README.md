@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/JWT-Auth-4EAA25" alt="JWT" />
   <img src="https://img.shields.io/badge/OAuth2-Enabled-4B0082" alt="OAuth2" />
   <img src="https://img.shields.io/badge/Zero%20Trust-Implemented-FF6B6B" alt="Zero Trust" />
-  <img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-2.0.0-blue" alt="Version" />
 </p>
 
 <p align="center">
@@ -318,7 +318,7 @@ zero-trust-api-gateway/
 │   └── main.py               # FastAPI app entry point
 ├── nginx/                    # reverse proxy deployment files
 ├── tests/                    # unit and integration tests
-├── Requirements.txt          # Python dependencies
+├── requirements.txt          # Python dependencies
 ├── run.py                    # application runner
 └── README.md                 # project documentation
 ```
@@ -357,7 +357,7 @@ source venv/bin/activate
 ### 4. Install dependencies
 
 ```bash
-pip install -r Requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 5. Run the application
