@@ -12,9 +12,15 @@ from gateway.main import app
 
 
 @pytest.fixture
-def sync_client():
-    with TestClient(app, base_url="http://test") as c:
-        yield c
+def sync_client(_lifespan):
+    # NOT used as a context manager, and that is deliberate: entering TestClient
+    # as a context manager runs the application lifespan, so this fixture used to
+    # run init_db(), init_rate_limit_backend(), load_persisted_models() and the
+    # demo backend once per test function — while the async suite next door ran
+    # the lifespan zero times. conftest's session-scoped `_lifespan` fixture now
+    # owns startup/shutdown exactly once for the whole session; depending on it
+    # here is what guarantees the schema exists before the first request.
+    yield TestClient(app, base_url="http://test")
 
 
 def test_register_user(sync_client):

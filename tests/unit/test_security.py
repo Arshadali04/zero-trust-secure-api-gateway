@@ -6,7 +6,6 @@ No database or HTTP required.
 """
 
 import time
-import pytest
 from gateway.core.security import SecurityManager
 
 
