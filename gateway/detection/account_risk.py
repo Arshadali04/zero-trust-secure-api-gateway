@@ -28,7 +28,7 @@ account stay flagged" window off that number was overestimating badly.
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 
@@ -91,7 +91,7 @@ def _naive_utc_now() -> datetime:
     dependencies.py compares stepup_since against a JWT mfa_at (real epoch UTC),
     which was the one place the skew produced a wrong *decision*.
     """
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 # Rows written before the UTC correction above carry IST values, i.e. up to
@@ -110,13 +110,13 @@ def _sanitize_stored(ts):
     try:
         if ts.tzinfo is not None:
             ts = ts.replace(tzinfo=None)
-        drift = (ts - datetime.now(UTC).replace(tzinfo=None)).total_seconds()
+        drift = (ts - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds()
         if drift > _MAX_PLAUSIBLE_FUTURE_SECONDS:
             logger.warning(
                 "Clamping implausibly-future stored timestamp %s (drift=%.0fs) — "
                 "almost certainly a pre-UTC-fix IST row.", ts, drift,
             )
-            return datetime.now(UTC).replace(tzinfo=None)
+            return datetime.now(timezone.utc).replace(tzinfo=None)
     except Exception:
         return ts
     return ts

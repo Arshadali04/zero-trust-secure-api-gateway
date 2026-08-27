@@ -60,7 +60,7 @@ import ipaddress
 import logging
 import math
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -208,8 +208,8 @@ def _elapsed_since(last_login) -> timedelta | None:
             last_login = datetime.fromisoformat(last_login.replace("Z", "+00:00"))
         if last_login.tzinfo is None:
             # SQLite hands back naive datetimes; the app writes UTC.
-            last_login = last_login.replace(tzinfo=UTC)
-        return datetime.now(UTC) - last_login
+            last_login = last_login.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - last_login
     except Exception as exc:
         # Previously `except Exception: return None`, which silently disabled the
         # whole check for that login. Unparseable timestamps mean the detector is
