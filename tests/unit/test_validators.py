@@ -6,8 +6,8 @@ Unit tests for Pydantic schema validators (password strength, username format).
 
 import pytest
 from pydantic import ValidationError
-from gateway.db.schemas import UserCreate, LoginRequest
 
+from gateway.db.schemas import LoginRequest, UserCreate
 
 VALID_PAYLOAD = {
     "email": "user@example.com",
