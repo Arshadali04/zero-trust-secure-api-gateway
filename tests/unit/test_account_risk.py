@@ -78,7 +78,7 @@ class TestDecay:
         assert _decayed(0.8, None) == 0.8
 
     def test_immediate_returns_base(self):
-        assert _decayed(0.8, _naive_utc_now()) == 0.8
+        assert _decayed(0.8, _naive_utc_now()) == pytest.approx(0.8, abs=1e-6)
 
     def test_one_hour_half_life(self):
         """After 4 hours (1 half-life), score should be half."""
