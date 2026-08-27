@@ -18,26 +18,24 @@ event_type tags stored in AuditLog.event_type:
 Skips logging for: /health, /docs, /redoc, /openapi.json, /favicon.ico
 """
 
-import time
-import logging
 import json
+import logging
+import time
 
 from fastapi import Request
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from sqlalchemy import select
 
+from gateway.core.client_ip import get_client_ip
+from gateway.core.security import verify_token_for_request
 from gateway.db.database import AsyncSessionLocal
 from gateway.db.models import AuditLog
-from gateway.core.security import verify_token_for_request
-from gateway.core.client_ip import get_client_ip
 
 logger = logging.getLogger(__name__)
 
 # Paths we don't bother logging
 SKIP_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/", "/favicon.ico"}
-
-
 
 
 def _extract_user_email(request: Request) -> str | None:
@@ -174,9 +172,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 async def _track_behavior(user_email: str, ip: str, body_bytes: int = 0) -> None:
     """Feed behavioural profiling and log anomalies as SecurityEvents."""
     try:
-        from gateway.db.models import User, SecurityEvent
-        from gateway.detection.behavior import update_behavior_profile
         from datetime import datetime
+
+        from gateway.db.models import SecurityEvent, User
+        from gateway.detection.behavior import update_behavior_profile
 
         async with AsyncSessionLocal() as session:
             result = await session.execute(
@@ -247,6 +246,7 @@ async def _write_audit_log(
             if user_email:
                 try:
                     from sqlalchemy import select
+
                     from gateway.db.models import User
                     resolved_user_id = (await session.execute(
                         select(User.id).where(User.email == user_email)

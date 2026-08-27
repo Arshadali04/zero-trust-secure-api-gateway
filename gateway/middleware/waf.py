@@ -15,17 +15,17 @@ On match:
 Exempt paths: /docs, /redoc, /openapi.json, /health, /frontend/*, /favicon.ico
 """
 
-import re
 import logging
+import re
 from urllib.parse import unquote_plus
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from gateway.core.client_ip import get_client_ip
 from gateway.db.database import AsyncSessionLocal
 from gateway.db.models import SecurityEvent
-from gateway.core.client_ip import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +107,10 @@ def _detect_threat(text: str) -> str | None:
     return None
 
 
-
-
 # ---------------------------------------------------------------------------
 # Security event logging (awaited, not fire-and-forget)
 # ---------------------------------------------------------------------------
+
 
 async def _log_security_event(
     threat_type: str, ip: str, endpoint: str, payload: str, risk_score: float
@@ -217,7 +216,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
 
             # Auto-block IPs that repeatedly trigger the WAF
             try:
-                from gateway.middleware.ip_blocker import record_waf_hit, auto_block_ip
+                from gateway.middleware.ip_blocker import auto_block_ip, record_waf_hit
                 if record_waf_hit(ip):
                     await auto_block_ip(
                         ip,

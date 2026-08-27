@@ -15,10 +15,10 @@ An IP is auto-blocked when:
 Blocks are time-limited (default: 1 hour) or permanent (blocked_until=None).
 """
 
-import time
 import logging
+import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 from fastapi import Request

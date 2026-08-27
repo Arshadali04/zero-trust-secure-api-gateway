@@ -34,8 +34,8 @@ The score and action are added as response headers for transparency:
   X-Risk-Score, X-Risk-Action
 """
 
-import time
 import logging
+import time
 from collections import defaultdict, deque
 from threading import Lock
 
@@ -43,8 +43,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from gateway.core.security import verify_token_for_request
 from gateway.core.client_ip import get_client_ip
+from gateway.core.security import verify_token_for_request
 from gateway.db.database import AsyncSessionLocal
 from gateway.db.models import SecurityEvent
 
@@ -302,6 +302,7 @@ async def _elevate_authenticated_account_risk(
 
     try:
         from sqlalchemy import select
+
         from gateway.db.models import User
         from gateway.detection.account_risk import elevate_account_risk
 

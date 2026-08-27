@@ -18,8 +18,8 @@ Backend selection:
     Note that this fallback is NOT limit-equivalent — see _is_allowed().
 """
 
-import time
 import logging
+import time
 from collections import defaultdict, deque
 from threading import Lock
 
@@ -68,6 +68,7 @@ def _init_redis():
     global _redis_client
     try:
         import redis
+
         from gateway.config import settings
         url = getattr(settings, "REDIS_URL", "")
         if not url:
