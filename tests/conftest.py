@@ -78,17 +78,14 @@ os.environ["GATEWAY_MODEL_DIR"] = os.path.join(_TEST_TMPDIR, "models")
 os.environ.setdefault("SECRET_KEY", "test-only-secret-key-32-characters-minimum")
 os.environ.setdefault("ENVIRONMENT", "development")
 
-import pytest                                                       # noqa: E402
-import pytest_asyncio                                               # noqa: E402
-from httpx import AsyncClient, ASGITransport                        # noqa: E402
-from sqlalchemy.pool import NullPool                                # noqa: E402
-from sqlalchemy.ext.asyncio import (                                # noqa: E402
-    AsyncSession, async_sessionmaker, create_async_engine,
-)
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
 
-from gateway.main import app                                        # noqa: E402
-from gateway.db.database import engine, get_db                      # noqa: E402
-
+from gateway.db.database import engine, get_db  # noqa: E402
+from gateway.main import app  # noqa: E402
 
 # ── Request-path engine (see note 3 above) ────────────────────────────────────
 _request_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
@@ -151,7 +148,7 @@ def _reset_auth_rate_limits():
     themselves are unaffected: they flood within a single test function, so they
     reach the limit before the next reset runs.
     """
-    from gateway.middleware.rate_limit import _store, _lock
+    from gateway.middleware.rate_limit import _lock, _store
     with _lock:
         for key in list(_store.keys()):
             if key.startswith(("auth:", "forgot:", "mfa:")):
@@ -180,6 +177,7 @@ async def _reset_ip_blocker():
     with ip_blocker._waf_lock:
         ip_blocker._waf_hits.clear()
     from sqlalchemy import delete
+
     from gateway.db.database import AsyncSessionLocal
     from gateway.db.models import BlockedIP
     try:

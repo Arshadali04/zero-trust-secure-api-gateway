@@ -1,17 +1,17 @@
-from datetime import datetime, UTC
 import logging
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gateway.config import settings
-from gateway.db.database import get_db
 from gateway.core.client_ip import get_client_ip
-from gateway.db.models import User, SecurityEvent
+from gateway.db.database import get_db
+from gateway.db.models import SecurityEvent, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["OAuth"])
@@ -78,8 +78,8 @@ async def _check_freeze(request: Request, user: User, db: AsyncSession) -> None:
     Block an OAuth login if the (account, IP) pair is frozen.
     Raises 403 if frozen; otherwise returns None.
     """
-    from gateway.detection.account_risk import is_user_frozen
     from gateway.core.client_ip import get_client_ip
+    from gateway.detection.account_risk import is_user_frozen
     current_ip = get_client_ip(request)
     if await is_user_frozen(db, user.id, current_ip):
         raise HTTPException(

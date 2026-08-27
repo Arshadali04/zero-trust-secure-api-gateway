@@ -14,27 +14,18 @@ Admin only:
 
 import ipaddress
 import logging
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gateway.db.database import get_db
-from gateway.db.models import AuditLog, User, AccountFreeze
 from gateway.core.security import SecurityManager
 from gateway.core.tokens import revoke_all_user_tokens
-from gateway.db.schemas import (
-    AuditLogResponse,
-    SecurityEventResponse,
-    UserResponse,
-    UserUpdate,
-    ChangePasswordRequest,
-)
-from gateway.dependencies import (
-    require_admin_user,
-    require_authenticated_user,
-)
+from gateway.db.database import get_db
+from gateway.db.models import AccountFreeze, AuditLog, User
+from gateway.db.schemas import AuditLogResponse, ChangePasswordRequest, SecurityEventResponse, UserResponse, UserUpdate
+from gateway.dependencies import require_admin_user, require_authenticated_user
 
 logger = logging.getLogger(__name__)
 
@@ -261,9 +252,8 @@ async def _purge_user_rows(db: AsyncSession, user_id: int) -> None:
     database cannot abort the whole operation and leave a half-deleted user.
     """
     from sqlalchemy import delete as sa_delete
-    from gateway.db.models import (
-        ApiKey, Service, AccountFreeze, BehaviorProfile, RefreshToken,
-    )
+
+    from gateway.db.models import AccountFreeze, ApiKey, BehaviorProfile, RefreshToken, Service
 
     # The owner column is NOT uniformly named: Service uses `owner_user_id` while
     # everything else uses `user_id`. A generic `model.user_id` loop raises
@@ -354,8 +344,8 @@ async def block_ip(
     _admin: User = Depends(require_admin_user),
 ):
     """[Admin] Manually block an IP address."""
-    from gateway.db.models import BlockedIP
     from gateway.core.client_ip import get_client_ip
+    from gateway.db.models import BlockedIP
 
     # Malformed or absent JSON body previously raised out of the handler as an
     # unhandled JSONDecodeError → HTTP 500. Return 400 instead.

@@ -27,18 +27,18 @@ import json
 import logging
 import os
 import socket
-import uuid
 import time
+import uuid
 from urllib.parse import urlparse as _urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
-from gateway.core.client_ip import get_client_ip
-from gateway.dependencies import require_authenticated_user, require_api_key_or_user
 from gateway.core.apikeys import scopes_allow
+from gateway.core.client_ip import get_client_ip
 from gateway.db.models import User
+from gateway.dependencies import require_api_key_or_user, require_authenticated_user
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ router = APIRouter(prefix="/api/v1", tags=["Proxy"])
 #   PROXY_ROUTES_JSON='{"data":"http://127.0.0.1:8001"}'
 # Or just register it once at runtime: POST /services.
 _DEFAULT_ROUTES: dict[str, str] = {}
+
 
 def _load_routes() -> dict[str, str]:
     raw = os.getenv("PROXY_ROUTES_JSON", "")
@@ -228,9 +229,10 @@ async def proxy(
     upstream_base = None
     _db_entry_found = False
 
+    from sqlalchemy import select as sa_select
+
     from gateway.db.database import AsyncSessionLocal
     from gateway.db.models import Service
-    from sqlalchemy import select as sa_select
 
     try:
         async with AsyncSessionLocal() as session:

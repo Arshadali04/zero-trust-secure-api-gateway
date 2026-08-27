@@ -17,12 +17,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gateway.db.database import get_db
-from gateway.db.models import User, Service
-from gateway.db.schemas import (
-    ServiceCreate,
-    ServiceUpdate,
-    ServiceResponse,
-)
+from gateway.db.models import Service, User
+from gateway.db.schemas import ServiceCreate, ServiceResponse, ServiceUpdate
 from gateway.dependencies import require_authenticated_user
 
 logger = logging.getLogger(__name__)
