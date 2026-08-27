@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
         logger.warning("ML model load failed (non-fatal): %s", exc)
     _start_demo_backend()
     yield
-    # ── Shutdown ─────────────────────────────────────────────────────────────
+    # ── Shutdown ──────────────────────────────────────────────────────────────
     try:
         from gateway.demo.mock_backend import _mock
         _mock.stop()
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "gateway.main:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104
         port=8000,
         reload=True,
         log_level="info",
