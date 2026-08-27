@@ -8,26 +8,21 @@ Unit tests for:
 """
 
 
-from gateway.core.security import (
-    generate_api_key,
-    hash_api_key,
-    API_KEY_PREFIX,
-    API_KEY_RANDOM_LENGTH,
-)
 from gateway.core.apikeys import (
+    FAIL_LIMIT,
+    deserialize_scopes,
     is_ip_blocked,
     record_failure,
     reset_ip,
-    FAIL_LIMIT,
-    serialize_scopes,
-    deserialize_scopes,
     scopes_allow,
+    serialize_scopes,
 )
-
+from gateway.core.security import API_KEY_PREFIX, API_KEY_RANDOM_LENGTH, generate_api_key, hash_api_key
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Key generation
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestAPIKeyGeneration:
     def test_prefix_matches_constant(self):

@@ -1,8 +1,10 @@
 """Tests for authentication edge cases."""
 
-import pytest
-from gateway.core.security import SecurityManager
 from datetime import timedelta
+
+import pytest
+
+from gateway.core.security import SecurityManager
 
 
 @pytest.mark.asyncio

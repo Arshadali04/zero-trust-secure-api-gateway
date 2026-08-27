@@ -1,15 +1,19 @@
 """Integration tests: risk score -> step-up -> freeze -> decay -> recovery."""
 
+from datetime import timedelta
+
 import pytest
 import pytest_asyncio
-from datetime import timedelta
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from gateway.db.database import Base
 from gateway.detection.account_risk import (
-    _naive_utc_now, elevate_account_risk, is_user_frozen,
-    decay_and_persist, RISK_LOW_AFTER_DAYS,
     ELEVATE_COOLDOWN_SECONDS,
+    RISK_LOW_AFTER_DAYS,
+    _naive_utc_now,
+    decay_and_persist,
+    elevate_account_risk,
+    is_user_frozen,
 )
 
 
@@ -21,6 +25,7 @@ def anyio_backend():
 # ── In-memory test DB (separate from the shared one to keep tests isolated) ──
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+
 
 @pytest_asyncio.fixture
 async def db_engine():
@@ -107,7 +112,6 @@ class TestRiskLifecycle:
         await apply_risk_policy(session, user, decayed, ip="127.0.0.1")
         if decayed < 0.35:
             assert user.stepup_required is False
-
 
     async def test_full_recovery_after_low_days(self, session):
         """After RISK_LOW_AFTER_DAYS, risk should be exactly 0.0."""

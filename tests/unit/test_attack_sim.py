@@ -12,6 +12,8 @@ from unittest.mock import patch
 import pytest
 
 # ── Fake httpx so the engine never makes real network calls ──────────────────
+
+
 class FakeResponse:
     def __init__(self, status, headers=None):
         self.status_code = status
