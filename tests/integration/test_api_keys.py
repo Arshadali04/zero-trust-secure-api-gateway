@@ -8,18 +8,18 @@ Integration tests for the full API-key lifecycle:
   - Brute-force block after repeated invalid key attempts
 """
 
-import json
-import threading
 import http.server
+import json
 import socketserver
+import threading
 
 import pytest
 import pytest_asyncio
 
 from gateway.core.apikeys import reset_ip
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 class _EchoHandler(http.server.BaseHTTPRequestHandler):
     """Return a small JSON payload; logs the upstream headers to .last_headers."""
@@ -51,6 +51,7 @@ def mock_upstream():
     thread.start()
 
     import gateway.routes.proxy as proxy_mod
+
     # These tests proxy without registering a service, so they do need a static
     # route. _DEFAULT_ROUTES is empty now, so this injection is the only source.
     original = proxy_mod.UPSTREAM_ROUTES.copy()

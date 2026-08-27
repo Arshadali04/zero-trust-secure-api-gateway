@@ -15,17 +15,16 @@ This mirrors exactly what a demonstrator would show at a defense:
 register → key → proxy → revoke → blocked.
 """
 
-import json
-import threading
 import http.server
+import json
 import socketserver
+import threading
 
 import pytest
 import pytest_asyncio
 
-
-
 # ── Tiny upstream used by the proxy ──────────────────────────────────────────
+
 
 class _EchoHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):

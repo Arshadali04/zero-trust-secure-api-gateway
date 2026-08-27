@@ -1,16 +1,21 @@
 """Tests for gateway/detection/account_risk.py — risk decay, freeze lifecycle, policy enforcement."""
 
+from datetime import timedelta
+
 import pytest
 import pytest_asyncio
-from datetime import timedelta
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from gateway.db.database import Base
-from gateway.db.models import User, AccountFreeze
+from gateway.db.models import AccountFreeze, User
 from gateway.detection.account_risk import (
-    _decayed, _naive_utc_now, is_user_frozen, apply_risk_policy,
-    decay_and_persist, RISK_LOW_AFTER_DAYS,
+    RISK_LOW_AFTER_DAYS,
+    _decayed,
+    _naive_utc_now,
+    apply_risk_policy,
+    decay_and_persist,
+    is_user_frozen,
 )
 
 
@@ -22,6 +27,7 @@ def anyio_backend():
 # ── In-memory test DB ───────────────────────────────────────────────────────
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+
 
 @pytest_asyncio.fixture
 async def db_engine():
@@ -158,7 +164,7 @@ class TestIsUserFrozen:
 class TestApplyRiskPolicy:
     async def test_stepup_at_threshold(self, session):
         user = User(email="a@test.com", username="a", hashed_password="x", is_active=True,
-                     token_version=1, mfa_enabled=True)
+                    token_version=1, mfa_enabled=True)
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -170,7 +176,7 @@ class TestApplyRiskPolicy:
 
     async def test_freeze_at_critical(self, session):
         user = User(email="b@test.com", username="b", hashed_password="x", is_active=True,
-                     token_version=1)
+                    token_version=1)
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -189,7 +195,7 @@ class TestApplyRiskPolicy:
 
     async def test_recovery_clears_stepup(self, session):
         user = User(email="c@test.com", username="c", hashed_password="x", is_active=True,
-                     token_version=1, stepup_required=True, stepup_since=_naive_utc_now())
+                    token_version=1, stepup_required=True, stepup_since=_naive_utc_now())
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -200,7 +206,7 @@ class TestApplyRiskPolicy:
 
     async def test_already_frozen_skips_duplicate(self, session):
         user = User(email="d@test.com", username="d", hashed_password="x", is_active=True,
-                     token_version=1)
+                    token_version=1)
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -222,7 +228,7 @@ class TestApplyRiskPolicy:
 class TestDecayAndPersist:
     async def test_persists_decayed_score(self, session):
         user = User(email="e@test.com", username="e", hashed_password="x", is_active=True,
-                     risk_score=0.8, risk_updated_at=_naive_utc_now() - timedelta(hours=4))
+                    risk_score=0.8, risk_updated_at=_naive_utc_now() - timedelta(hours=4))
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -233,7 +239,7 @@ class TestDecayAndPersist:
 
     async def test_zero_score_not_committed(self, session):
         user = User(email="f@test.com", username="f", hashed_password="x", is_active=True,
-                     risk_score=0.0, risk_updated_at=None)
+                    risk_score=0.0, risk_updated_at=None)
         session.add(user)
         await session.commit()
         await session.refresh(user)

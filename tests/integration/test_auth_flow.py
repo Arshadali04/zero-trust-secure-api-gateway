@@ -10,10 +10,10 @@ These tests run against the real FastAPI app with an in-memory SQLite DB
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Registration
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestRegistration:
     @pytest.mark.asyncio

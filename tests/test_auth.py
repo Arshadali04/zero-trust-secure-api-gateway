@@ -8,6 +8,7 @@ tests/integration/test_auth_flow.py.
 
 import pytest
 from starlette.testclient import TestClient
+
 from gateway.main import app
 
 
