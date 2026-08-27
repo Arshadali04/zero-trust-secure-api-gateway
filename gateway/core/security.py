@@ -1,6 +1,6 @@
 import hashlib
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from passlib.context import CryptContext
@@ -67,9 +67,9 @@ class SecurityManager:
 
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.now(UTC) + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(UTC) + timedelta(minutes=15)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=15)
 
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, secret_key or settings.SECRET_KEY, algorithm=settings.ALGORITHM)

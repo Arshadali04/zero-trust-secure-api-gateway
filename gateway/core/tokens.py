@@ -15,7 +15,7 @@ Security properties:
 import hashlib
 import logging
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,7 +72,7 @@ async def create_token_pair(
     if not family_id:
         family_id = secrets.token_urlsafe(32)
 
-    expires_at = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
     rt = RefreshToken(
         user_id=user_id,
@@ -139,8 +139,8 @@ async def rotate_refresh_token(
     # Check expiry
     exp = rt.expires_at
     if exp.tzinfo is None:
-        exp = exp.replace(tzinfo=UTC)
-    if exp < datetime.now(UTC):
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < datetime.now(timezone.utc):
         await db.delete(rt)
         await db.commit()
         return None
@@ -208,7 +208,7 @@ async def revoke_all_user_tokens(db: AsyncSession, user_id: int) -> None:
 
 async def cleanup_expired(db: AsyncSession) -> int:
     """Remove expired refresh tokens. Call periodically."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     result = await db.execute(
         delete(RefreshToken).where(RefreshToken.expires_at < now)
     )

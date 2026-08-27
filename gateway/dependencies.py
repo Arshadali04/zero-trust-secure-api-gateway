@@ -6,7 +6,7 @@ of concerns. Schemas define data shapes; dependencies enforce access control.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -161,7 +161,7 @@ async def require_authenticated_user(
                     since = user.stepup_since
                     if isinstance(since, datetime) and since.tzinfo is not None:
                         since = since.replace(tzinfo=None)
-                    since_ts = since.replace(tzinfo=UTC).timestamp()
+                    since_ts = since.replace(tzinfo=timezone.utc).timestamp()
                 except Exception:
                     since_ts = 0.0
             if float(mfa_at) < float(since_ts):
@@ -246,8 +246,8 @@ async def require_api_key(
     if key.expires_at is not None:
         exp = key.expires_at
         if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=UTC)
-        if exp < datetime.now(UTC):
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="API key has expired",
@@ -262,7 +262,7 @@ async def require_api_key(
         )
 
     try:
-        key.last_used_at = datetime.now(UTC)
+        key.last_used_at = datetime.now(timezone.utc)
         await db.commit()
     except Exception:
         await db.rollback()

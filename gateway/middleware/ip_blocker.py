@@ -18,7 +18,7 @@ Blocks are time-limited (default: 1 hour) or permanent (blocked_until=None).
 import logging
 import time
 from collections import defaultdict, deque
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 from fastapi import Request
@@ -56,7 +56,7 @@ async def auto_block_ip(ip: str, reason: str) -> None:
     """Persist an automatic block for an IP after repeated WAF hits."""
     try:
         from sqlalchemy import select
-        blocked_until = datetime.now(UTC) + timedelta(seconds=AUTO_BLOCK_DURATION)
+        blocked_until = datetime.now(timezone.utc) + timedelta(seconds=AUTO_BLOCK_DURATION)
         async with AsyncSessionLocal() as session:
             existing = (await session.execute(
                 select(BlockedIP).where(BlockedIP.ip_address == ip)
@@ -106,7 +106,7 @@ class IPBlockerMiddleware(BaseHTTPMiddleware):
 
         try:
             from sqlalchemy import select
-            now = datetime.now(UTC).replace(tzinfo=None)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             async with AsyncSessionLocal() as session:
                 row = (await session.execute(
                     select(BlockedIP).where(BlockedIP.ip_address == ip)
