@@ -52,7 +52,7 @@ def _validate_upstream_url(url: str) -> None:
         raise HTTPException(status_code=400, detail="Upstream URL must include a hostname.")
 
     # Block obviously dangerous targets regardless of settings.
-    _BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "0.0.0.0"}
+    _BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "0.0.0.0"}  # nosec B104
     if hostname in _BLOCKED_HOSTS:
         raise HTTPException(
             status_code=400,
