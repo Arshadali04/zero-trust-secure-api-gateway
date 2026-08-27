@@ -14,7 +14,7 @@ Security model
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -89,7 +89,7 @@ async def create_api_key(
 
     expires_at = None
     if payload.expires_in_days:
-        expires_at = datetime.now(UTC) + timedelta(days=payload.expires_in_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
 
     key = ApiKey(
         user_id=current_user.id,
@@ -167,7 +167,7 @@ async def revoke_api_key(
 ):
     """Revoke an API key immediately. Revoked keys are rejected at the proxy."""
     key = await _get_owned_key(key_id, current_user, db)
-    key.revoked_at = datetime.now(UTC)
+    key.revoked_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(key)
     logger.info("API key revoked: user=%s key_id=%s", current_user.email, key.id)
@@ -198,8 +198,8 @@ async def rotate_api_key(
     if old_key.expires_at is not None:
         exp = old_key.expires_at
         if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=UTC)
-        if exp < datetime.now(UTC):
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=400,
                 detail="This key has expired and cannot be rotated. Create a new key instead.",
@@ -215,7 +215,7 @@ async def rotate_api_key(
         expires_at=old_key.expires_at,
     )
 
-    old_key.revoked_at = datetime.now(UTC)
+    old_key.revoked_at = datetime.now(timezone.utc)
     db.add(new_key)
     await db.commit()
     await db.refresh(new_key)

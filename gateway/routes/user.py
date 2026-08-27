@@ -14,7 +14,7 @@ Admin only:
 
 import ipaddress
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import desc, select
@@ -400,7 +400,7 @@ async def block_ip(
             ) from None
         if hours <= 0:
             raise HTTPException(status_code=400, detail="duration_hours must be greater than 0.")
-        blocked_until = datetime.now(UTC) + timedelta(hours=hours)
+        blocked_until = datetime.now(timezone.utc) + timedelta(hours=hours)
 
     existing = (await db.execute(select(BlockedIP).where(BlockedIP.ip_address == ip))).scalar_one_or_none()
     if existing:

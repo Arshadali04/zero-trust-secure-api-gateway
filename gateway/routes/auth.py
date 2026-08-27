@@ -1,6 +1,6 @@
 import logging
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
@@ -53,7 +53,7 @@ async def register(user_data: UserCreate, response: Response, db: AsyncSession =
         existing_user.full_name = user_data.full_name
         existing_user.hashed_password = SecurityManager.hash_password(user_data.password)
         existing_user.is_active = True
-        existing_user.last_login = datetime.now(UTC)
+        existing_user.last_login = datetime.now(timezone.utc)
 
         await db.commit()
         await db.refresh(existing_user)
@@ -73,7 +73,7 @@ async def register(user_data: UserCreate, response: Response, db: AsyncSession =
         hashed_password=hashed_password,
         is_active=True,
         role="user",
-        last_login=datetime.now(UTC),
+        last_login=datetime.now(timezone.utc),
     )
 
     db.add(new_user)
@@ -103,8 +103,8 @@ async def login(payload: LoginRequest, response: Response, request: Request, db:
         # Calculate time remaining until thaw
         freeze_until = user.account_frozen_until
         if freeze_until and freeze_until.tzinfo is None:
-            freeze_until = freeze_until.replace(tzinfo=UTC)
-        now_utc = datetime.now(UTC)
+            freeze_until = freeze_until.replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(timezone.utc)
         remaining_seconds = int((freeze_until - now_utc).total_seconds()) if freeze_until else 0
         minutes = max(1, remaining_seconds // 60)
 
@@ -218,7 +218,7 @@ async def login(payload: LoginRequest, response: Response, request: Request, db:
 
     # Both timestamps are written only after the check has consumed the previous
     # values, so last_login/last_login_ip always describe the *current* login.
-    user.last_login = datetime.now(UTC)
+    user.last_login = datetime.now(timezone.utc)
     user.last_login_ip = ip
 
     # Decay the stored risk score before returning it so the login response
@@ -277,7 +277,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
 
     # Generate token and save it
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(UTC) + timedelta(hours=1)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
     # In a real app, delete old tokens for this user first
     await db.execute(PasswordReset.__table__.delete().where(PasswordReset.email == payload.email))
@@ -314,8 +314,8 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
     # SQLite stores naive datetimes — normalise to aware (UTC) before comparing
     reset_exp = reset_entry.expires_at
     if reset_exp.tzinfo is None:
-        reset_exp = reset_exp.replace(tzinfo=UTC)
-    if reset_exp < datetime.now(UTC):
+        reset_exp = reset_exp.replace(tzinfo=timezone.utc)
+    if reset_exp < datetime.now(timezone.utc):
         await db.delete(reset_entry)
         await db.commit()
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")

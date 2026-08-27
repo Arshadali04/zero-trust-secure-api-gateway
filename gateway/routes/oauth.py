@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 from authlib.integrations.starlette_client import OAuth
@@ -103,7 +103,7 @@ async def upsert_oauth_user(
     result = await db.execute(select(User).where(User.email == email))
     existing = result.scalar_one_or_none()
 
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     if existing:
         # ── Account-linking gate (H1) ────────────────────────────────────────

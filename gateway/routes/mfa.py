@@ -20,7 +20,7 @@ this is a deliberate, load-bearing choice, not an oversight.
 import base64
 import io
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -265,7 +265,7 @@ async def mfa_verify(
         await db.commit()
         logger.info("Step-up demand cleared for: %s", user.email)
 
-    mfa_ts = datetime.now(UTC).timestamp()
+    mfa_ts = datetime.now(timezone.utc).timestamp()
 
     # Issue a new token pair so the refresh token also carries mfa_verified=True.
     # This prevents MFA bypass via refresh: the new refresh token will propagate
