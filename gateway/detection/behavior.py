@@ -14,8 +14,9 @@ fallback when scikit-learn is unavailable.
 import logging
 import time
 from collections import defaultdict, deque
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from threading import Lock
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ async def update_behavior_profile(
             user_id=user_id,
             avg_requests_per_minute=max(5.0, float(rpm)),
             last_seen_ip=current_ip,
-            last_seen_at=datetime.now(UTC),
+            last_seen_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         await db.commit()
@@ -125,7 +126,7 @@ async def update_behavior_profile(
         return score_user(user_id, float(rpm), float(failed), body_bytes, hour)
 
     baseline = float(profile.avg_requests_per_minute or 5.0)
-    anomaly = None
+    anomaly: dict[str, Any] | None = None
 
     # Clamp: a profile polluted by earlier long bursts (the old fast-blend
     # baseline chased RPM) must not make the threshold unreachable forever.
@@ -155,7 +156,7 @@ async def update_behavior_profile(
     # The login route calls record_failed_auth() on every bad password, so a
     # burst of failed logins for this account shows up here as a spike.
     if failed > 5:
-        auth_anomaly = {
+        auth_anomaly: dict[str, Any] = {
             "threat_type": "auth_spike",
             "risk_score": min(0.5 + (failed / 20.0), 0.9),
             "reason": f"failed_auth_spike failures={failed}/min",
@@ -170,7 +171,7 @@ async def update_behavior_profile(
         profile.avg_requests_per_minute = baseline  # hold baseline during anomaly
 
     profile.last_seen_ip = current_ip
-    profile.last_seen_at = datetime.now(UTC)
+    profile.last_seen_at = datetime.now(timezone.utc)
     await db.commit()
 
     # ML outlier scoring (separate signal — may flag even when rules don't)

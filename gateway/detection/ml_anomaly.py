@@ -26,8 +26,9 @@ import os
 import re
 from collections import OrderedDict, defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC
+from datetime import timezone
 from threading import Lock
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ MAX_TRACKED_USERS = 500
 # It is NOT a defaultdict — use _touch_user() to create an entry, so every
 # insertion goes through the eviction check.
 _history: "OrderedDict[int, deque]" = OrderedDict()
-_models: dict[int, object] = {}
+_models: dict[int, Any] = {}
 _since_refit: dict[int, int] = defaultdict(int)
 _lock = Lock()
 
@@ -127,7 +128,7 @@ def _touch_user(user_id: int) -> deque:
     return hist
 
 
-def _feature_vector(rpm: float, failed_auth: float, body_bytes: int, hour: int) -> list[float]:
+def _feature_vector(rpm: float, failed_auth: float, body_bytes: float, hour: int) -> list[float]:
     return [
         float(rpm),
         float(failed_auth),
@@ -353,7 +354,7 @@ def score_user(user_id: int, rpm: float, failed_auth: float, body_bytes: int = 0
     # UTC, not local: datetime.now() made the 4th feature depend on the
     # machine timezone, so a persisted model scored differently after a
     # host move and models were not portable between environments.
-    hour = hour if hour is not None else datetime.now(UTC).hour
+    hour = hour if hour is not None else datetime.now(timezone.utc).hour
     vec = _feature_vector(rpm, failed_auth, body_bytes, hour)
 
     with _lock:
