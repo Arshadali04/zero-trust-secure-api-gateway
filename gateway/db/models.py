@@ -1,4 +1,32 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, Text
+"""ORM models for the gateway.
+
+Typing note
+-----------
+Columns are declared in SQLAlchemy 2.0 style — ``Mapped[T] = mapped_column(...)``
+rather than ``x = Column(...)``. The old style types every attribute as
+``Column[T]`` instead of ``T``, so mypy rejected every ordinary use of a model
+field: reading ``user.email`` as a ``str``, assigning ``key.last_used_at = now``,
+passing ``user.id`` to a function taking ``int``. That accounted for 94 of the 97
+errors in ``mypy gateway/``.
+
+``Optional[T]`` here mirrors the *database* schema, not what the application
+usually expects to find. A column with a Python-side ``default=`` is still
+``NULL``-able in DDL — the default is applied by the ORM on insert, not by a
+``NOT NULL`` constraint — so e.g. ``is_active`` is ``Mapped[Optional[bool]]``.
+Annotating it ``Mapped[bool]`` would make SQLAlchemy emit ``NOT NULL`` and
+silently change the schema. CI runs mypy with ``--no-strict-optional``, so these
+Optionals do not force ``is None`` guards at every call site.
+
+The explicit SQL type is always passed to ``mapped_column`` (``String(255)``,
+``DateTime(timezone=True)``, ...) rather than inferred from the annotation, so
+column types and lengths are unchanged.
+"""
+
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from gateway.db.database import Base
@@ -11,35 +39,37 @@ class User(Base):
         Index('idx_user_active', 'is_active'),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=True)
-    full_name = Column(String(255), nullable=True)
-    is_active = Column(Boolean, default=True, index=True)
-    is_superuser = Column(Boolean, default=False)
-    role = Column(String(50), default="user")
-    mfa_enabled = Column(Boolean, default=False)
-    mfa_secret = Column(String(64), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True), nullable=True)
-    last_login_ip = Column(String(45), nullable=True)
-    risk_score = Column(Float, default=0.0)
-    risk_updated_at = Column(DateTime(timezone=True), nullable=True)   # decay anchor
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True, index=True)
+    is_superuser: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    role: Mapped[Optional[str]] = mapped_column(String(50), default="user")
+    mfa_enabled: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    mfa_secret: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    risk_score: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    risk_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # decay anchor
     # Cooldown anchor, written only by elevate_account_risk. Kept separate from
     # risk_updated_at because decay_and_persist re-stamps that column on every
     # /auth/me read, which was resetting the elevation cooldown continuously.
-    risk_elevated_at = Column(DateTime(timezone=True), nullable=True)
-    token_version = Column(Integer, default=1)
+    risk_elevated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_version: Mapped[Optional[int]] = mapped_column(Integer, default=1)
     # True once an OAuth identity has been attached to this account. Used to
     # distinguish a FIRST link to a password-bearing account (a takeover vector
     # while registration has no email verification) from routine OAuth logins.
-    oauth_linked = Column(Boolean, default=False)
-    # Adaptive security policy flags
-    stepup_required = Column(Boolean, default=False)          # risk crossed step-up threshold
-    stepup_since = Column(DateTime(timezone=True), nullable=True)  # when step-up was demanded
-    account_frozen_until = Column(DateTime(timezone=True), nullable=True)  # critical risk → 1h freeze
+    oauth_linked: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    # Adaptive security policy flags: stepup_required is set once risk crosses the
+    # step-up threshold, stepup_since records when step-up was demanded, and
+    # account_frozen_until is the end of a critical-risk 1h freeze.
+    stepup_required: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    stepup_since: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    account_frozen_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self):
         return f"<User {self.email}>"
@@ -52,17 +82,18 @@ class AuditLog(Base):
         Index('idx_audit_timestamp', 'timestamp'),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=True, index=True)
-    action = Column(String(100), nullable=False, index=True)
-    resource = Column(String(255), nullable=True)
-    method = Column(String(10), nullable=False)
-    status_code = Column(Integer, nullable=True)
-    event_type = Column(String(30), nullable=True, index=True)  # successful|unsuccessful|blocked|rate_limited|proxied
-    ip_address = Column(String(45), index=True)
-    user_agent = Column(String(500), nullable=True)
-    details = Column(Text, nullable=True)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    resource: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    method: Mapped[str] = mapped_column(String(10), nullable=False)
+    status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # successful|unsuccessful|blocked|rate_limited|proxied
+    event_type: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, index=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), index=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
 class SecurityEvent(Base):
@@ -73,14 +104,14 @@ class SecurityEvent(Base):
         Index('idx_security_ip', 'ip_address'),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    threat_type = Column(String(50), nullable=False, index=True)
-    ip_address = Column(String(45), nullable=False, index=True)
-    endpoint = Column(String(500), nullable=True)
-    payload = Column(Text, nullable=True)
-    risk_score = Column(Float, default=0.0)
-    status = Column(String(20), default="detected")
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    threat_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
+    endpoint: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    risk_score: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    status: Mapped[Optional[str]] = mapped_column(String(20), default="detected")
+    timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
 class AccountFreeze(Base):
@@ -97,11 +128,11 @@ class AccountFreeze(Base):
     __table_args__ = (
         Index('idx_freeze_user_ip', 'user_id', 'ip_address'),
     )
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    ip_address = Column(String(45), nullable=False, index=True)
-    frozen_until = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
+    frozen_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
         return f"<AccountFreeze user={self.user_id} ip={self.ip_address} until={self.frozen_until}>"
@@ -109,10 +140,10 @@ class AccountFreeze(Base):
 
 class PasswordReset(Base):
     __tablename__ = "password_resets"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), index=True, nullable=False)
-    token = Column(String(255), unique=True, index=True, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    token: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ApiKey(Base):
@@ -132,16 +163,16 @@ class ApiKey(Base):
         Index('idx_apikey_hash', 'key_hash', unique=True),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    name = Column(String(100), nullable=False)
-    key_prefix = Column(String(20), nullable=False, index=True)
-    key_hash = Column(String(64), nullable=False, unique=True)
-    scopes = Column(Text, nullable=False, default="[]")       # JSON array string
-    last_used_at = Column(DateTime(timezone=True), nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=True)
-    revoked_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    scopes: Mapped[str] = mapped_column(Text, nullable=False, default="[]")       # JSON array string
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     def __repr__(self):
         return f"<ApiKey {self.key_prefix}*** user_id={self.user_id}>"
@@ -161,14 +192,14 @@ class Service(Base):
         Index('idx_service_name', 'name'),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    owner_user_id = Column(Integer, nullable=False, index=True)
-    name = Column(String(80), nullable=False, index=True)
-    upstream_url = Column(String(500), nullable=False)
-    description = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    upstream_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
 
     def __repr__(self):
         return f"<Service {self.name} → {self.upstream_url}>"
@@ -187,11 +218,12 @@ class BlockedIP(Base):
         Index('idx_blocked_ip', 'ip_address', unique=True),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    ip_address = Column(String(45), nullable=False, unique=True, index=True)
-    reason = Column(String(200), nullable=True)
-    blocked_until = Column(DateTime(timezone=True), nullable=True)  # None = permanent
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, unique=True, index=True)
+    reason: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # None = permanent
+    blocked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
         return f"<BlockedIP {self.ip_address} until={self.blocked_until}>"
@@ -209,14 +241,16 @@ class BehaviorProfile(Base):
         Index('idx_behavior_user', 'user_id', unique=True),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, unique=True, index=True)
-    avg_requests_per_minute = Column(Float, default=5.0)
-    failed_auth_count = Column(Integer, default=0)
-    last_seen_ip = Column(String(45), nullable=True)
-    last_seen_at = Column(DateTime(timezone=True), nullable=True)
-    anomaly_count = Column(Integer, default=0)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    avg_requests_per_minute: Mapped[Optional[float]] = mapped_column(Float, default=5.0)
+    failed_auth_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    last_seen_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    anomaly_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class RefreshToken(Base):
@@ -240,16 +274,16 @@ class RefreshToken(Base):
         Index("idx_refresh_user", "user_id"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    token_hash = Column(String(64), nullable=False, unique=True)
-    family_id = Column(String(64), nullable=False, index=True)
-    is_consumed = Column(Boolean, default=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    family_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    is_consumed: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     # Stores whether MFA was verified when this token was issued.
     # rotate_refresh_token propagates this flag so token refresh cannot
     # silently promote a non-MFA session to mfa_verified=True.
-    mfa_verified = Column(Boolean, default=False, nullable=False)
-    mfa_at = Column(Float, nullable=True)
+    mfa_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_at: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # The user's token_version at the moment this refresh token was issued.
     # rotate_refresh_token rejects the token if the stored value no longer
     # matches users.token_version, so any operation that bumps token_version
@@ -257,6 +291,6 @@ class RefreshToken(Base):
     # refresh tokens as well as access tokens. Without this binding, a stolen
     # refresh token could be exchanged for a valid access token *after* a
     # password change, and the change would revoke nothing.
-    token_version = Column(Integer, default=1, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    token_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now())
