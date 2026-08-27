@@ -1,10 +1,12 @@
-from datetime import datetime, timedelta, UTC
 import logging
+import secrets
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, status, Depends, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gateway.config import settings
 from gateway.core.security import SecurityManager
 # Module level, not inside a function: reset_password (line ~330) calls this
 # and had no import in scope, so the handler raised NameError before reaching
@@ -12,18 +14,16 @@ from gateway.core.security import SecurityManager
 # session at that point, so the request 500'd and the reset silently did
 # nothing. Introduced by the C1 fix in ac54438; no test covers that branch.
 from gateway.core.tokens import revoke_all_user_tokens
-from gateway.config import settings
 from gateway.db.database import get_db
-from gateway.db.models import User, PasswordReset, SecurityEvent
+from gateway.db.models import PasswordReset, SecurityEvent, User
 from gateway.db.schemas import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    ResetPasswordRequest,
+    TokenResponse,
     UserCreate,
     UserResponse,
-    TokenResponse,
-    LoginRequest,
-    ForgotPasswordRequest,
-    ResetPasswordRequest
 )
-import secrets
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -96,8 +96,8 @@ async def login(payload: LoginRequest, response: Response, request: Request, db:
 
     # ── Critical-risk freeze (account-wide) ──────────────────────────────────────
     # When account risk reaches CRITICAL threshold (0.85), freeze for 1 hour.
-    from gateway.detection.account_risk import is_user_frozen
     from gateway.core.client_ip import get_client_ip
+    from gateway.detection.account_risk import is_user_frozen
     current_ip = get_client_ip(request)
     if await is_user_frozen(db, user.id, current_ip):
         # Calculate time remaining until thaw
@@ -373,8 +373,8 @@ async def refresh_token(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/logout")
 async def logout(request: Request, db: AsyncSession = Depends(get_db)):
     """Revoke the refresh token family (if provided) and clear the session."""
-    from gateway.core.tokens import revoke_all_user_tokens
     from gateway.core.security import verify_token_for_request
+    from gateway.core.tokens import revoke_all_user_tokens
 
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):

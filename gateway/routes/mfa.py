@@ -17,15 +17,15 @@ A rejected TOTP code returns **400**, not 401. See `_INVALID_CODE_STATUS` below 
 this is a deliberate, load-bearing choice, not an oversight.
 """
 
-import logging
 import base64
 import io
+import logging
+from datetime import UTC, datetime
 
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, UTC
 
 from gateway.config import settings
 from gateway.db.database import get_db

@@ -1,8 +1,10 @@
-from fastapi import APIRouter
 import logging
+
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Health"])
+
 
 @router.get("/health")
 async def health_check():

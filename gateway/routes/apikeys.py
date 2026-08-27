@@ -13,23 +13,18 @@ Security model
   - Keys support optional expiry and manual revoke / rotate.
 """
 
-from datetime import datetime, timedelta, UTC
 import logging
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gateway.core.apikeys import deserialize_scopes, serialize_scopes
 from gateway.core.security import generate_api_key
-from gateway.core.apikeys import serialize_scopes, deserialize_scopes
 from gateway.db.database import get_db
 from gateway.db.models import ApiKey, User
-from gateway.db.schemas import (
-    ApiKeyCreate,
-    ApiKeyUpdate,
-    ApiKeyResponse,
-    ApiKeyCreated,
-)
+from gateway.db.schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyResponse, ApiKeyUpdate
 from gateway.dependencies import require_authenticated_user
 
 logger = logging.getLogger(__name__)

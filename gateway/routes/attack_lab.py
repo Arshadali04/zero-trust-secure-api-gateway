@@ -10,8 +10,8 @@ Attack Lab control endpoints + live WebSocket feed.
 """
 
 import asyncio
-import time
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -68,6 +68,7 @@ async def run_attack(
     # that satisfies the MFA gate and the step-up gate outlived the caller's own
     # logout. The simulation only needs to be *authenticated*, not MFA-elevated.
     from datetime import timedelta
+
     from gateway.core.security import SecurityManager
 
     jwt = SecurityManager.create_user_token(
