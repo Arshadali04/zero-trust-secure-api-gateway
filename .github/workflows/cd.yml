@@ -35,7 +35,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=sha
+            type=raw,value=sha-${{ github.event.workflow_run.head_sha }}
             type=raw,value=latest
 
       - name: Build and push image
