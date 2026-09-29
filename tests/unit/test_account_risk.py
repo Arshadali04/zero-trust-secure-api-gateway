@@ -219,6 +219,20 @@ class TestApplyRiskPolicy:
         await apply_risk_policy(session, user, 0.95, ip="127.0.0.1")
         assert user.token_version == v1  # not bumped again
 
+    async def test_critical_risk_skips_admin_freeze(self, session):
+        admin = User(
+            email="admin_risk@test.com", username="admin_risk", hashed_password="x",
+            is_active=True, role="admin", token_version=1,
+        )
+        session.add(admin)
+        await session.commit()
+        await session.refresh(admin)
+
+        result = await apply_risk_policy(session, admin, 0.95, ip="127.0.0.1")
+        assert result.get("frozen") is not True
+        assert admin.account_frozen_until is None
+        assert admin.token_version == 1
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # decay_and_persist

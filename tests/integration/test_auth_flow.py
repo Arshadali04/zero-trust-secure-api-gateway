@@ -184,3 +184,77 @@ class TestAdminRoutes:
     async def test_audit_logs_requires_admin(self, client, auth_headers):
         resp = await client.get("/admin/audit-logs", headers=auth_headers)
         assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_admin_endpoints_and_user_freeze_flow(self, client, registered_user):
+        admin_data = {
+            "email": "flowadmin@example.com",
+            "username": "flowadmin",
+            "password": "AdminSecure@Pass1",
+            "full_name": "Flow Admin",
+        }
+        await client.post("/auth/register", json=admin_data)
+
+        target_data = {
+            "email": "targetuser@example.com",
+            "username": "targetuser",
+            "password": "TargetSecure@Pass1",
+            "full_name": "Target User",
+        }
+        target_res = await client.post("/auth/register", json=target_data)
+        target_id = target_res.json()["id"]
+
+        from sqlalchemy import select
+
+        from gateway.db.database import AsyncSessionLocal
+        from gateway.db.models import User
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(User).where(User.email == admin_data["email"]))
+            admin = result.scalar_one_or_none()
+            admin.role = "admin"
+            await session.commit()
+            admin_id = admin.id
+
+        login_resp = await client.post(
+            "/auth/login",
+            json={"email": admin_data["email"], "password": admin_data["password"]},
+        )
+        admin_token = login_resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {admin_token}"}
+
+        # 1. List users
+        users_resp = await client.get("/admin/users", headers=headers)
+        assert users_resp.status_code == 200
+        users = users_resp.json()
+        assert any(u["email"] == registered_user["email"] for u in users)
+
+        # 2. List audit logs
+        logs_resp = await client.get("/admin/audit-logs", headers=headers)
+        assert logs_resp.status_code == 200
+
+        # 3. Freeze self should fail (400)
+        self_freeze = await client.post(f"/admin/users/{admin_id}/freeze", headers=headers)
+        assert self_freeze.status_code == 400
+
+        # 4. Freeze nonexistent should fail (404)
+        nonexistent = await client.post("/admin/users/999999/freeze", headers=headers)
+        assert nonexistent.status_code == 404
+
+        # 5. Freeze target user should succeed (200)
+        freeze_resp = await client.post(f"/admin/users/{target_id}/freeze", headers=headers)
+        assert freeze_resp.status_code == 200
+        assert freeze_resp.json()["message"] == "Account frozen."
+
+        # 6. Unfreeze target user should succeed (200)
+        unfreeze_resp = await client.post(f"/admin/users/{target_id}/unfreeze", headers=headers)
+        assert unfreeze_resp.status_code == 200
+        assert unfreeze_resp.json()["message"] == "Account unfrozen."
+
+        # 7. Change role with query param
+        role_resp = await client.patch(
+            f"/admin/users/{target_id}/role?role=admin",
+            headers=headers,
+        )
+        assert role_resp.status_code == 200
+        assert role_resp.json()["role"] == "admin"
