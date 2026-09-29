@@ -37,7 +37,17 @@ window._extractError = function _extractError(error, fallback) {
 // ---------------------------------------------------------------------------
 
 window.API = {
-  _base: window.location.origin,
+  _base: (function () {
+    if (window.location.port && window.location.port !== "8000") {
+      return (
+        window.location.protocol +
+        "//" +
+        window.location.hostname +
+        ":8000"
+      );
+    }
+    return window.location.origin;
+  })(),
 
   // ── Core request ─────────────────────────────────────────────────────────
 
@@ -264,8 +274,9 @@ window.API = {
   rotateApiKey: (id) => API.request("POST", "/api-keys/" + id + "/rotate"),
 
   // ── Services ──────────────────────────────────────────────────────────────
-
-  getServices: () => API.request("GET", "/services"),
+ 
+  getServices: (all) =>
+    API.request("GET", all ? "/services?all=true" : "/services"),
 
   createService: (data) => API.request("POST", "/services", data),
 
@@ -296,7 +307,13 @@ window.API = {
 
   // ── Admin ─────────────────────────────────────────────────────────────────
 
-  getAdminUsers: () => API.request("GET", "/admin/users"),
+  getAdminUsers: (skip, limit) => {
+    var qs = [];
+    if (skip !== undefined) qs.push("skip=" + encodeURIComponent(skip));
+    if (limit !== undefined) qs.push("limit=" + encodeURIComponent(limit));
+    var query = qs.length ? "?" + qs.join("&") : "";
+    return API.request("GET", "/admin/users" + query);
+  },
 
   updateUserRole: (id, role) =>
     API.request(
@@ -306,6 +323,10 @@ window.API = {
 
   unfreezeUser: (id) =>
     API.request("POST", "/admin/users/" + id + "/unfreeze"),
+
+  freezeUser: (id) =>
+    API.request("POST", "/admin/users/" + id + "/freeze"),
+
 
   deleteUser: (id) => API.request("DELETE", "/admin/users/" + id),
 

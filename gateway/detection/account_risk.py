@@ -230,6 +230,13 @@ async def apply_risk_policy(db, user: User, new_risk: float, ip: str = "") -> di
 
     # ── Freeze at critical (account-wide) ─────────────────────────────────────
     if new_risk >= crit_thr:
+        if getattr(user, "role", None) == "admin":
+            logger.warning(
+                "ACCOUNT CRITICAL RISK user=%s (admin) risk=%.2f — auto-freeze and session revocation skipped for admin",
+                user.id, new_risk,
+            )
+            return result
+
         already_frozen = False
         if user.account_frozen_until:
             try:

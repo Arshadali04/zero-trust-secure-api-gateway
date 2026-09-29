@@ -74,6 +74,7 @@ async def run_attack(
     jwt = SecurityManager.create_user_token(
         _user.email,
         _user.token_version or 1,
+        mfa_verified=True,
         expires_delta=timedelta(minutes=min(5, max(1, (payload.duration // 60) + 1))),
     )
     lab.start(payload.attack_type, payload.duration, payload.intensity, jwt)

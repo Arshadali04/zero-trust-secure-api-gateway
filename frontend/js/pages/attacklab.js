@@ -47,6 +47,9 @@ let ws = null;
 /** Pending reconnect timer id. */
 let reconnectTimer = null;
 
+/** Most recently received lab state snapshot. */
+let currentLabState = null;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -292,6 +295,7 @@ function updateRiskGauge(score) {
  */
 function updateLabState(data) {
   if (!data) return;
+  currentLabState = data;
 
   const running = !!data.running;
   const total   = data.total   || 0;
@@ -472,9 +476,12 @@ function connectWS() {
     reconnectTimer = null;
   }
 
-  const wsBase = window.location.origin.replace(/^https?/, proto =>
-    proto === 'https' ? 'wss' : 'ws'
-  );
+  let wsHost = window.location.host;
+  if (window.location.port && window.location.port !== '8000') {
+    wsHost = window.location.hostname + ':8000';
+  }
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsBase = `${proto}//${wsHost}`;
 
   // The /ws/attack-lab endpoint is authenticated. Browsers cannot set an
   // Authorization header on a WebSocket handshake, so the access token is
@@ -534,8 +541,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     import('../scene-attacklab.js').catch(() => null),
     import('../motion-utils.js').catch(() => null),
   ]).then(([sceneM, motionM]) => {
-    if (sceneM) { initAttackScene = sceneM.initAttackScene; labScene = sceneM.initAttackScene($id('bg-canvas')); }
-    if (motionM) { slideIn = motionM.slideIn; fadeUp = motionM.fadeUp; revealPanels = motionM.revealPanels; motionM.revealPanels('.panel', 0.1); }
+    if (sceneM && sceneM.initAttackScene) {
+      initAttackScene = sceneM.initAttackScene;
+      labScene = sceneM.initAttackScene($id('bg-canvas'));
+      if (labScene && currentLabState) {
+        labScene.setRunning(!!currentLabState.running);
+      }
+    }
+    if (motionM) {
+      slideIn = motionM.slideIn;
+      fadeUp = motionM.fadeUp;
+      revealPanels = motionM.revealPanels;
+      motionM.revealPanels('.panel', 0.1);
+    }
   });
 
   // 5. Seed initial state from REST so the page has data before the WS connects
@@ -549,4 +567,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 6. Open the live WebSocket feed
   connectWS();
+
+  // 7. Polling fallback if WebSocket drops or is delayed
+  setInterval(async () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      try {
+        const state = await API.getAttackState();
+        if (state) updateLabState(state);
+      } catch (_) {}
+    }
+  }, 1500);
 });

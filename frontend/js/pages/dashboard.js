@@ -120,36 +120,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     sessionUserEl.textContent = user.email || user.username || 'unknown';
   }
 
-  // 7. Risk score
-  const rawScore = typeof user.risk_score === 'number' ? user.risk_score : null;
-  renderRisk(rawScore);
+  function applyUserData(u) {
+    if (!u) return;
 
-  // 8. Account status
-  const mfaDot  = document.getElementById('mfaStatusDot');
-  const mfaText = document.getElementById('mfaStatusText');
-  if (mfaDot && mfaText) {
-    if (user.mfa_enabled) {
-      mfaDot.className = 'dot dot-ok';
-      mfaText.textContent = 'MFA: Enabled';
-    } else {
-      mfaDot.className = 'dot dot-warn';
-      mfaText.textContent = 'MFA: Disabled';
+    // Risk score
+    const rawScore = typeof u.risk_score === 'number' ? u.risk_score : null;
+    renderRisk(rawScore);
+
+    // Account status
+    const mfaDot  = document.getElementById('mfaStatusDot');
+    const mfaText = document.getElementById('mfaStatusText');
+    if (mfaDot && mfaText) {
+      if (u.mfa_enabled) {
+        mfaDot.className = 'dot dot-ok';
+        mfaText.textContent = 'MFA: Enabled';
+      } else {
+        mfaDot.className = 'dot dot-warn';
+        mfaText.textContent = 'MFA: Disabled';
+      }
+    }
+    const stepUpRow = document.getElementById('stepUpRow');
+    if (stepUpRow) {
+      stepUpRow.style.display = u.stepup_required ? '' : 'none';
+    }
+    const frozenRow = document.getElementById('frozenRow');
+    if (frozenRow) {
+      let isFrozen = false;
+      if (u.account_frozen_until) {
+        let ts = String(u.account_frozen_until).trim();
+        if (!ts.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(ts)) ts += 'Z';
+        isFrozen = new Date(ts) > new Date();
+      }
+      frozenRow.style.display = isFrozen ? '' : 'none';
+    }
+
+    const sessionInfo = document.getElementById('sessionInfo');
+    if (sessionInfo) {
+      sessionInfo.textContent = 'User: ' + (u.email || '—') + '  |  Role: ' + (u.role || 'user');
     }
   }
-  if (user.stepup_required) {
-    const row = document.getElementById('stepUpRow');
-    if (row) row.style.display = '';
-  }
-  if (user.account_frozen_until) {
-    const row = document.getElementById('frozenRow');
-    if (row) row.style.display = '';
+
+  // Initial apply from login session
+  applyUserData(user);
+
+  // Auto-refresh user risk score & status periodically and on tab focus
+  async function refreshUserData() {
+    try {
+      const updated = await API.getMe();
+      if (updated) applyUserData(updated);
+    } catch (_) {}
   }
 
-  // 9. Session info line
-  const sessionInfo = document.getElementById('sessionInfo');
-  if (sessionInfo) {
-    sessionInfo.textContent = 'User: ' + (user.email || '—') + '  |  Role: ' + (user.role || 'user');
-  }
+  const pollInterval = setInterval(() => {
+    if (!document.hidden) refreshUserData();
+  }, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshUserData();
+  });
 
   // 10. Health check
   try {
@@ -202,6 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } finally {
         proxyBtn.disabled = false;
         proxyBtn.textContent = 'Call API';
+        refreshUserData();
       }
     });
   }

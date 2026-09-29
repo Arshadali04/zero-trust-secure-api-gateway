@@ -153,9 +153,10 @@
             <h3 style="font-size:0.95rem;font-weight:700">Live Proxy Test</h3>
             <div class="flex-row">
               <select class="form-select btn-sm" id="proxyEndpointSel" style="font-family:var(--mono);font-size:0.8rem;width:auto">
-                <option value="data/status">GET /api/v1/data/status</option>
-                <option value="data/hello">GET /api/v1/data/hello</option>
-                <option value="data/ping">GET /api/v1/data/ping</option>
+                <option value="data/status">GET /api/v1/data/status (Service: data - 8001)</option>
+                <option value="data/hello">GET /api/v1/data/hello (Service: data - 8001)</option>
+                <option value="demo/hello">GET /api/v1/demo/hello (Service: demo - 8002)</option>
+                <option value="demo/test">GET /api/v1/demo/test (Service: demo - 8002)</option>
               </select>
               <button class="btn btn-primary btn-sm" id="proxyBtn">Call API</button>
             </div>

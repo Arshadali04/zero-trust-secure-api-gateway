@@ -45,6 +45,15 @@ async def _get_owned_key(key_id: int, user: User, db: AsyncSession) -> ApiKey:
 
 
 def _to_response(key: ApiKey) -> ApiKeyResponse:
+    now = datetime.now(timezone.utc)
+    is_revoked = key.revoked_at is not None
+    is_expired = False
+    if key.expires_at is not None:
+        exp = key.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        is_expired = exp < now
+
     return ApiKeyResponse(
         id=key.id,
         name=key.name,
@@ -54,6 +63,7 @@ def _to_response(key: ApiKey) -> ApiKeyResponse:
         expires_at=key.expires_at,
         revoked_at=key.revoked_at,
         created_at=key.created_at,
+        is_active=not is_revoked and not is_expired,
     )
 
 

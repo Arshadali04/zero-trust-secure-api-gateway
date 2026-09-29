@@ -154,6 +154,45 @@ async def unfreeze_user(
     }
 
 
+@router.post("/admin/users/{user_id}/freeze")
+async def freeze_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin_user),
+):
+    """[Admin] Manually freeze an account for the configured freeze duration."""
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot freeze your own admin account")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    from sqlalchemy import delete
+    from gateway.config import settings
+    from gateway.db.models import AccountFreeze, RefreshToken
+    from gateway.detection.account_risk import _naive_utc_now
+
+    now = _naive_utc_now()
+    freeze_secs = getattr(settings, "RISK_FREEZE_SECONDS", 3600)
+    freeze_until = now + timedelta(seconds=freeze_secs)
+
+    await db.execute(delete(AccountFreeze).where(AccountFreeze.user_id == user_id))
+    db.add(AccountFreeze(user_id=user_id, ip_address="*", frozen_until=freeze_until))
+    user.account_frozen_until = freeze_until
+    user.token_version = (user.token_version or 1) + 1
+    await db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+    await db.commit()
+
+    return {
+        "message": "Account frozen.",
+        "user_id": user.id,
+        "email": user.email,
+        "frozen_until": freeze_until.replace(tzinfo=timezone.utc).isoformat(),
+    }
+
+
+
 @router.get("/admin/audit-logs", response_model=list[AuditLogResponse])
 async def list_audit_logs(
     skip: int = Query(0, ge=0),

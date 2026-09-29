@@ -40,6 +40,29 @@ function esc(s) {
 }
 
 /**
+ * Safely parse a timestamp (ISO string, epoch seconds, epoch ms).
+ * If an ISO string has no timezone indicator, it treats it as UTC (appends 'Z')
+ * because all gateway server timestamps are in UTC.
+ * @param {string|number|null} ts
+ * @returns {Date|null}
+ */
+function parseUtcDate(ts) {
+  if (ts == null || ts === '') return null;
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+  const n = Number(ts);
+  if (!isNaN(n) && n > 0) {
+    return n < 1e12 ? new Date(n * 1000) : new Date(n);
+  }
+  let s = String(ts).trim();
+  if (!s) return null;
+  if (!s.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(s)) {
+    s += 'Z';
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? new Date(ts) : d;
+}
+
+/**
  * Format a timestamp — handles ISO strings, Unix seconds (< 1e12), and ms.
  * @param {string|number|null} ts
  * @returns {string}
@@ -47,11 +70,8 @@ function esc(s) {
 function fmt(ts) {
   if (ts == null || ts === '') return '—';
   try {
-    const n = Number(ts);
-    const d = !isNaN(n) && n > 0
-      ? (n < 1e12 ? new Date(n * 1000) : new Date(n))
-      : new Date(ts);
-    if (isNaN(d.getTime())) return String(ts);
+    const d = parseUtcDate(ts);
+    if (!d || isNaN(d.getTime())) return String(ts);
     return d.toLocaleString();
   } catch (_) {
     return String(ts);
@@ -144,7 +164,8 @@ function renderUsersTable(users) {
 
   tbody.innerHTML = users.map(u => {
     // ── Status badge
-    const isFrozen  = !!(u.account_frozen_until && new Date(u.account_frozen_until) > new Date());
+    const fu        = parseUtcDate(u.account_frozen_until);
+    const isFrozen  = !!(fu && fu > new Date());
     const isActive  = !!u.is_active;
     const statusBadge = !isActive
       ? '<span class="badge badge-dim">Inactive</span>'
@@ -170,19 +191,27 @@ function renderUsersTable(users) {
       </select>`.trim();
 
     // ── Action buttons
-    const unfreezeBtn = isFrozen
+    const me = (window.Auth && window.Auth.getCurrentUser && window.Auth.getCurrentUser()) || {};
+    const isSelf = me.id && Number(me.id) === Number(u.id);
+    const freezeBtn = isFrozen
       ? `<button class="btn btn-ghost btn-sm"
                  data-action="unfreeze"
                  data-uid="${esc(u.id)}"
                  type="button">Unfreeze</button>`
-      : '';
+      : (!isSelf
+        ? `<button class="btn btn-ghost btn-sm text-alert"
+                   data-action="freeze"
+                   data-uid="${esc(u.id)}"
+                   data-email="${esc(u.email)}"
+                   type="button">Freeze</button>`
+        : '');
     const deleteBtn = `<button class="btn btn-danger btn-sm"
                data-action="delete"
                data-uid="${esc(u.id)}"
                data-email="${esc(u.email)}"
                type="button">Delete</button>`;
     const actionsHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-      ${unfreezeBtn}${deleteBtn}
+      ${freezeBtn}${deleteBtn}
     </div>`.trim();
 
     return `<tr>
@@ -286,8 +315,14 @@ async function loadUsers() {
     setMetric('metricTotal',  allUsers.length);
     setMetric('metricAdmins', allUsers.filter(u => u.role === 'admin').length);
     const now = new Date();
-    setMetric('metricActive', allUsers.filter(u => u.is_active && !(u.account_frozen_until && new Date(u.account_frozen_until) > now)).length);
-    setMetric('metricFrozen', allUsers.filter(u => u.account_frozen_until && new Date(u.account_frozen_until) > now).length);
+    setMetric('metricActive', allUsers.filter(u => {
+      const fu = parseUtcDate(u.account_frozen_until);
+      return u.is_active && !(fu && fu > now);
+    }).length);
+    setMetric('metricFrozen', allUsers.filter(u => {
+      const fu = parseUtcDate(u.account_frozen_until);
+      return fu && fu > now;
+    }).length);
 
     renderUsersTable(allUsers);
   } catch (err) {
@@ -414,6 +449,23 @@ async function handleUnfreeze(id) {
 }
 
 /**
+ * Freeze a user account after confirmation.
+ * @param {string|number} id
+ * @param {string} email
+ */
+async function handleFreeze(id, email) {
+  if (!confirm(`Freeze account #${id} (${email})? This will revoke active sessions and block logins for 1 hour.`)) return;
+  try {
+    await API.freezeUser(id);
+    if (window.UI) UI.showSuccess(`Account #${id} (${email}) has been frozen.`);
+    await loadUsers();
+  } catch (err) {
+    const msg = (window._extractError && _extractError(err)) || 'Failed to freeze account.';
+    if (window.UI) UI.showError(msg);
+  }
+}
+
+/**
  * Permanently delete a user after confirmation.
  * @param {string|number} id
  * @param {string} email
@@ -482,7 +534,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Unfreeze / Delete: button "click" event
+    // Freeze / Unfreeze / Delete: button "click" event
     usersBody.addEventListener('click', async e => {
       const target = e.target.closest('[data-action]');
       if (!target || target.tagName === 'SELECT') return;
@@ -490,6 +542,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const action = target.dataset.action;
       if (action === 'unfreeze') {
         await handleUnfreeze(target.dataset.uid);
+      } else if (action === 'freeze') {
+        await handleFreeze(target.dataset.uid, target.dataset.email);
       } else if (action === 'delete') {
         await handleDelete(target.dataset.uid, target.dataset.email);
       }
@@ -517,4 +571,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 10. Initial data load (users tab is active by default)
   await loadUsers();
+
+  // Periodic refresh so frozen account count and security status stay live
+  setInterval(() => {
+    const usersPanel = document.getElementById('panel-users');
+    if (!document.hidden && usersPanel && usersPanel.classList.contains('active')) {
+      loadUsers();
+    }
+  }, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadUsers();
+  });
 });

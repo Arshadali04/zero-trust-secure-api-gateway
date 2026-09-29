@@ -78,7 +78,7 @@ def _validate_upstream_url(url: str) -> None:
         raise HTTPException(status_code=400, detail="Upstream URL must not target loopback (127.x.x.x / ::1).")
     if ip.is_link_local:
         raise HTTPException(status_code=400, detail="Upstream URL must not target link-local addresses (169.254.x.x / fe80::).")
-    if ip.is_reserved:
+    if ip.is_reserved and not (ip.is_loopback and getattr(_settings, "ALLOW_UPSTREAM_PRIVATE", True)):
         raise HTTPException(status_code=400, detail=f"Upstream IP {ip} is a reserved address.")
     if not getattr(_settings, "ALLOW_UPSTREAM_PRIVATE", True) and ip.is_private:
         raise HTTPException(
@@ -88,9 +88,10 @@ def _validate_upstream_url(url: str) -> None:
 
 
 async def _get_owned_service(service_id: int, user: User, db: AsyncSession) -> Service:
-    result = await db.execute(
-        select(Service).where(Service.id == service_id, Service.owner_user_id == user.id)
-    )
+    stmt = select(Service).where(Service.id == service_id)
+    if user.role != "admin":
+        stmt = stmt.where(Service.owner_user_id == user.id)
+    result = await db.execute(stmt)
     svc = result.scalar_one_or_none()
     if not svc:
         raise HTTPException(status_code=404, detail="Service not found")
@@ -133,15 +134,18 @@ async def register_service(
 
 @router.get("", response_model=list[ServiceResponse])
 async def list_my_services(
+    all: bool = False,
     current_user: User = Depends(require_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List services owned by the current user."""
-    result = await db.execute(
-        select(Service)
-        .where(Service.owner_user_id == current_user.id)
-        .order_by(Service.created_at.desc())
-    )
+    """List services. Admins see all services; non-admins see owned services (or active services if all=True for scope discovery)."""
+    stmt = select(Service).order_by(Service.created_at.desc())
+    if current_user.role != "admin":
+        if all:
+            stmt = stmt.where(Service.is_active.is_(True))
+        else:
+            stmt = stmt.where(Service.owner_user_id == current_user.id)
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 

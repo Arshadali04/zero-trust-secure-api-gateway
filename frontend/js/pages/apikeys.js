@@ -36,9 +36,22 @@ function esc(s) {
 // ─────────────────────────────────────────────
 // Date formatting
 // ─────────────────────────────────────────────
+function parseUtcDate(ts) {
+  if (ts == null || ts === '') return null;
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+  const n = Number(ts);
+  if (!isNaN(n) && n > 0) return n < 1e12 ? new Date(n * 1000) : new Date(n);
+  let str = String(ts).trim();
+  if (!str) return null;
+  if (!str.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(str)) str += 'Z';
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? new Date(ts) : d;
+}
+
 function fmt(s) {
   if (!s) return '<span style="color:var(--dim);">—</span>';
-  return esc(new Date(s).toLocaleString());
+  const d = parseUtcDate(s);
+  return esc(d && !isNaN(d.getTime()) ? d.toLocaleString() : String(s));
 }
 
 // ─────────────────────────────────────────────
@@ -79,37 +92,54 @@ function closeKeyReveal() {
 // ─────────────────────────────────────────────
 // Services scope checkboxes (inside new-key modal)
 // ─────────────────────────────────────────────
-function rebuildScopeCheckboxes(services) {
+function rebuildScopeCheckboxes(services, preselectedScope) {
   const group = $('scopesGroup');
+  if (!group) return;
+
   // Remove any previously injected proxy scope rows (keep the first "all" row)
   group.querySelectorAll('.proxy-scope-item').forEach((el) => el.remove());
 
-  services.filter((s) => s.is_active).forEach((svc) => {
+  const activeServices = (services || []).filter((s) => s.is_active);
+  activeServices.forEach((svc) => {
+    const scopeVal = `proxy:${svc.name}`;
+    const isPreselected = preselectedScope === scopeVal;
     const label = document.createElement('label');
     label.className = 'checkbox-item proxy-scope-item';
+    label.style.cursor = 'pointer';
     label.innerHTML =
-      `<input type="checkbox" value="proxy:${esc(svc.name)}">`
+      `<input type="checkbox" class="proxy-scope-cb" value="${esc(scopeVal)}"${isPreselected ? ' checked' : ''}>`
       + `<span>Proxy: <strong>${esc(svc.name)}</strong>`
-      + ` <span class="badge badge-dim" style="margin-left:4px;">proxy:${esc(svc.name)}</span></span>`;
+      + ` <span class="badge badge-dim" style="margin-left:4px;">${esc(scopeVal)}</span></span>`;
     group.appendChild(label);
   });
 
-  // When "all" is checked, disable proxy checkboxes
   const scopeAll = $('scopeAll');
-  function syncAll() {
-    const proxyBoxes = group.querySelectorAll('.proxy-scope-item input[type=checkbox]');
-    proxyBoxes.forEach((cb) => {
-      cb.disabled = scopeAll.checked;
-      if (scopeAll.checked) cb.checked = false;
-      cb.closest('.checkbox-item').style.opacity = scopeAll.checked ? '0.45' : '1';
-    });
+  if (scopeAll) {
+    if (preselectedScope) {
+      scopeAll.checked = false;
+    }
   }
 
-  // Remove old listener to avoid duplicates, then re-attach
-  const newScopeAll = scopeAll.cloneNode(true);
-  scopeAll.parentNode.replaceChild(newScopeAll, scopeAll);
-  newScopeAll.addEventListener('change', syncAll);
-  syncAll(); // initial sync
+  syncScopeCheckboxes();
+}
+
+function syncScopeCheckboxes() {
+  const group = $('scopesGroup');
+  if (!group) return;
+  const scopeAll = $('scopeAll');
+  if (!scopeAll) return;
+
+  const proxyBoxes = group.querySelectorAll('.proxy-scope-cb');
+  if (scopeAll.checked) {
+    proxyBoxes.forEach((cb) => {
+      cb.checked = false;
+      cb.closest('.checkbox-item').style.opacity = '0.6';
+    });
+  } else {
+    proxyBoxes.forEach((cb) => {
+      cb.closest('.checkbox-item').style.opacity = '1';
+    });
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -117,12 +147,12 @@ function rebuildScopeCheckboxes(services) {
 // ─────────────────────────────────────────────
 function collectScopes() {
   const group = $('scopesGroup');
-  const allCb = group.querySelector('#scopeAll') || group.querySelector('[value=all]');
+  if (!group) return ['all'];
+  const allCb = $('scopeAll');
 
   if (allCb && allCb.checked) return ['all'];
 
-  const checked = [...group.querySelectorAll('input[type=checkbox]:checked')]
-    .filter((cb) => cb.value !== 'all')
+  const checked = [...group.querySelectorAll('.proxy-scope-cb:checked')]
     .map((cb) => cb.value);
 
   return checked.length > 0 ? checked : ['all'];
@@ -152,13 +182,18 @@ function renderApiKeys(keys) {
   }
 
   tbody.innerHTML = keys.map((k) => {
-    const isActive  = k.is_active && !k.revoked_at;
+    const expDate   = k.expires_at ? parseUtcDate(k.expires_at) : null;
+    const isExpired = !!(expDate && expDate < new Date());
+    const isRevoked = !!k.revoked_at || (k.is_active === false);
+    const isActive  = !isRevoked && !isExpired;
     const scopes    = (k.scopes || [])
       .map((s) => `<span class="badge badge-info">${esc(s)}</span>`)
       .join(' ');
-    const statusBadge = isActive
-      ? '<span class="badge badge-ok">Active</span>'
-      : '<span class="badge badge-alert">Revoked</span>';
+    const statusBadge = isRevoked
+      ? '<span class="badge badge-alert">Revoked</span>'
+      : isExpired
+        ? '<span class="badge badge-warn">Expired</span>'
+        : '<span class="badge badge-ok">Active</span>';
     const actions = isActive
       ? `<button class="btn btn-ghost btn-sm" data-action="rotate" data-id="${esc(k.id)}">Rotate</button>`
         + `<button class="btn btn-danger btn-sm" data-action="revoke" data-id="${esc(k.id)}">Revoke</button>`
@@ -212,7 +247,7 @@ async function loadServices() {
   tbody.innerHTML = emptyRow(4, 'Loading services…');
 
   try {
-    _services = await API.getServices() || [];
+    _services = await API.getServices(true) || [];
     renderServices(_services);
   } catch (err) {
     tbody.innerHTML = emptyRow(4, 'Failed to load services.');
@@ -232,7 +267,8 @@ function renderServices(services) {
       ? '<span class="badge badge-ok">Active</span>'
       : '<span class="badge badge-alert">Inactive</span>';
     const actions = s.is_active
-      ? `<button class="btn btn-danger btn-sm" data-action="revoke" data-id="${esc(s.id)}">Deactivate</button>`
+      ? `<button class="btn btn-ghost btn-sm text-accent" data-action="create-key" data-name="${esc(s.name)}">Create Key</button>`
+        + `<button class="btn btn-danger btn-sm" data-action="revoke" data-id="${esc(s.id)}">Deactivate</button>`
         + `<button class="btn btn-dim btn-sm" data-action="delete" data-id="${esc(s.id)}">Delete</button>`
       : `<button class="btn btn-ghost btn-sm" data-action="reactivate" data-id="${esc(s.id)}">Reactivate</button>`
         + `<button class="btn btn-danger btn-sm" data-action="delete" data-id="${esc(s.id)}">Delete</button>`;
@@ -246,11 +282,15 @@ function renderServices(services) {
   }).join('');
 
   tbody.querySelectorAll('[data-action]').forEach((btn) => {
-    btn.addEventListener('click', () => handleServiceAction(btn.dataset.action, btn.dataset.id));
+    btn.addEventListener('click', () => handleServiceAction(btn.dataset.action, btn.dataset.id, btn.dataset.name));
   });
 }
 
-async function handleServiceAction(action, id) {
+async function handleServiceAction(action, id, name) {
+  if (action === 'create-key') {
+    openNewKeyModal(name ? `proxy:${name}` : null);
+    return;
+  }
   if (action === 'revoke') {
     try {
       await API.revokeService(id);
@@ -330,9 +370,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const panel = $('tab-' + btn.dataset.tab);
       if (panel) panel.classList.add('active');
 
-      // Lazy-load on first switch
+      const isServices = btn.dataset.tab === 'services';
+      if ($('newKeyBtn')) $('newKeyBtn').style.display = isServices ? 'none' : '';
+      if ($('headerNewServiceBtn')) $('headerNewServiceBtn').style.display = isServices ? '' : 'none';
+
+      // Lazy-load on switch
       if (btn.dataset.tab === 'api-keys') loadApiKeys();
-      if (btn.dataset.tab === 'services') loadServices();
+      if (isServices) loadServices();
     });
   });
 
@@ -343,13 +387,76 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ──────────────────────────────────────────
   // New API Key modal
   // ──────────────────────────────────────────
-  $('newKeyBtn').addEventListener('click', () => {
+  async function openNewKeyModal(preselectedScope) {
+    // If invoked from services tab, switch visually to API Keys tab
+    document.querySelectorAll('.tab-btn').forEach((b) => {
+      const isKeys = b.dataset.tab === 'api-keys';
+      b.classList.toggle('active', isKeys);
+      b.setAttribute('aria-selected', isKeys ? 'true' : 'false');
+    });
+    document.querySelectorAll('.tab-panel').forEach((p) => {
+      p.classList.toggle('active', p.id === 'tab-api-keys');
+    });
+    if ($('newKeyBtn')) $('newKeyBtn').style.display = '';
+    if ($('headerNewServiceBtn')) $('headerNewServiceBtn').style.display = 'none';
+
     hideModalError('newKeyFeedback');
     $('newKeyForm').reset();
-    rebuildScopeCheckboxes(_services);
+
+    if (preselectedScope && preselectedScope.startsWith('proxy:')) {
+      const svcName = preselectedScope.replace(/^proxy:/, '');
+      $('newKeyName').value = `${svcName}-key`;
+    }
+
+    try {
+      _services = await API.getServices(true) || [];
+    } catch (_) {}
+
+    rebuildScopeCheckboxes(_services, preselectedScope);
     $('newKeyModal').style.display = 'flex';
     $('newKeyName').focus();
-  });
+  }
+
+  $('newKeyBtn').addEventListener('click', () => openNewKeyModal());
+
+  // Scope selection event listener (interactive toggle between All vs Specific Proxy Scopes)
+  const scopesGroup = $('scopesGroup');
+  if (scopesGroup) {
+    scopesGroup.addEventListener('change', (e) => {
+      const scopeAll = $('scopeAll');
+      if (!scopeAll) return;
+
+      if (e.target === scopeAll) {
+        if (scopeAll.checked) {
+          scopesGroup.querySelectorAll('.proxy-scope-cb').forEach((cb) => {
+            cb.checked = false;
+            cb.closest('.checkbox-item').style.opacity = '0.6';
+          });
+        } else {
+          scopesGroup.querySelectorAll('.proxy-scope-cb').forEach((cb) => {
+            cb.closest('.checkbox-item').style.opacity = '1';
+          });
+        }
+      } else if (e.target.classList.contains('proxy-scope-cb')) {
+        if (e.target.checked) {
+          // A specific proxy scope was chosen -> uncheck "Full access"
+          scopeAll.checked = false;
+          scopesGroup.querySelectorAll('.proxy-scope-cb').forEach((cb) => {
+            cb.closest('.checkbox-item').style.opacity = '1';
+          });
+        } else {
+          // If all proxy checkboxes are unchecked, re-check "Full access"
+          const anyChecked = [...scopesGroup.querySelectorAll('.proxy-scope-cb')].some((cb) => cb.checked);
+          if (!anyChecked) {
+            scopeAll.checked = true;
+            scopesGroup.querySelectorAll('.proxy-scope-cb').forEach((cb) => {
+              cb.closest('.checkbox-item').style.opacity = '0.6';
+            });
+          }
+        }
+      }
+    });
+  }
 
   $('closeNewKeyModal').addEventListener('click', () => {
     $('newKeyModal').style.display = 'none';
@@ -427,12 +534,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ──────────────────────────────────────────
   // Register Service modal
   // ──────────────────────────────────────────
-  $('newServiceBtn').addEventListener('click', () => {
+  const openNewServiceModal = () => {
     hideModalError('newSvcFeedback');
     $('newServiceForm').reset();
     $('newServiceModal').style.display = 'flex';
     $('newSvcName').focus();
-  });
+  };
+  $('newServiceBtn').addEventListener('click', openNewServiceModal);
+  if ($('headerNewServiceBtn')) $('headerNewServiceBtn').addEventListener('click', openNewServiceModal);
 
   $('closeNewServiceModal').addEventListener('click', () => {
     $('newServiceModal').style.display = 'none';

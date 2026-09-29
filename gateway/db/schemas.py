@@ -11,9 +11,9 @@ outside it, and now nothing does.
 """
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Password strength helper
@@ -121,6 +121,14 @@ class UserResponse(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at", "last_login", "account_frozen_until", when_used="always")
+    def _serialize_dt(self, v: datetime | None) -> str | None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -158,6 +166,17 @@ class ApiKeyResponse(BaseModel):
     expires_at: datetime | None = None
     revoked_at: datetime | None = None
     created_at: datetime
+    is_active: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("last_used_at", "expires_at", "revoked_at", "created_at", when_used="always")
+    def _serialize_dt(self, v: datetime | None) -> str | None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 class ApiKeyCreated(ApiKeyResponse):
@@ -192,6 +211,14 @@ class ServiceResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at", when_used="always")
+    def _serialize_dt(self, v: datetime | None) -> str | None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Audit / security event schemas
@@ -212,6 +239,14 @@ class AuditLogResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("timestamp", when_used="always")
+    def _serialize_dt(self, v: datetime | None) -> str | None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
 
 class SecurityEventResponse(BaseModel):
     id: int
@@ -224,3 +259,11 @@ class SecurityEventResponse(BaseModel):
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("timestamp", when_used="always")
+    def _serialize_dt(self, v: datetime | None) -> str | None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
