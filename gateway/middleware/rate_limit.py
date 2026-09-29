@@ -57,6 +57,19 @@ FORGOT_RATE_LIMITED_PATHS = {"/auth/forgot-password"}
 # /auth/mfa/verify-setup is now rate-limited to prevent TOTP enumeration attacks
 MFA_RATE_LIMITED_PATHS = {"/auth/mfa/verify", "/auth/mfa/verify-setup"}
 
+# Endpoints exempt from API sliding-window rate limiting (static UI, probes, WS)
+_EXEMPT_PREFIXES = (
+    "/docs",
+    "/redoc",
+    "/openapi",
+    "/health",
+    "/frontend",
+    "/favicon",
+    "/metrics",
+    "/ws",
+    "/attack-lab/state",
+)
+
 # ---------------------------------------------------------------------------
 # Redis backend (preferred — horizontally scalable)
 # ---------------------------------------------------------------------------
@@ -213,8 +226,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """Starlette middleware that enforces per-IP rate limits."""
 
     async def dispatch(self, request: Request, call_next):
-        ip = get_client_ip(request)
         path = request.url.path
+        if request.method == "OPTIONS" or any(path.startswith(p) for p in _EXEMPT_PREFIXES):
+            return await call_next(request)
+
+        ip = get_client_ip(request)
 
         if path in AUTH_RATE_LIMITED_PATHS:
             limit = LIMITS["auth"]
@@ -228,9 +244,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         else:
             limit = LIMITS["default"]
             bucket = f"default:{ip}"
-
-        if request.method == "OPTIONS":
-            return await call_next(request)
 
         allowed, info = _is_allowed(bucket, limit)
 

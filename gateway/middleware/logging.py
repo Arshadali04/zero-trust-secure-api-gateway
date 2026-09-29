@@ -35,7 +35,7 @@ from gateway.db.models import AuditLog
 logger = logging.getLogger(__name__)
 
 # Paths we don't bother logging
-SKIP_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/", "/favicon.ico"}
+SKIP_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/", "/favicon.ico", "/metrics", "/metrics/"}
 
 
 def _extract_user_email(request: Request) -> str | None:
@@ -127,7 +127,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
             status_code = response.status_code
-            resp_headers = dict(response.headers)
+            try:
+                resp_headers = dict(response.headers)
+            except Exception:
+                resp_headers = {}
+                if hasattr(response, "headers"):
+                    try:
+                        for k, v in getattr(response.headers, "raw", []):
+                            k_str = k.decode("latin-1").lower() if isinstance(k, bytes) else str(k).lower()
+                            v_str = v.decode("latin-1") if isinstance(v, bytes) else str(v)
+                            resp_headers[k_str] = v_str
+                    except Exception:
+                        pass
         except Exception as exc:
             status_code = 500
             logger.exception("Unhandled error on %s %s", method, path)

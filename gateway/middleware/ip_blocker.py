@@ -54,6 +54,9 @@ def record_waf_hit(ip: str) -> bool:
 
 async def auto_block_ip(ip: str, reason: str) -> None:
     """Persist an automatic block for an IP after repeated WAF hits."""
+    if ip in ("127.0.0.1", "::1", "localhost", "testclient"):
+        logger.warning("Skipping WAF auto-block for loopback/test IP %s", ip)
+        return
     try:
         from sqlalchemy import select
         blocked_until = datetime.now(timezone.utc) + timedelta(seconds=AUTO_BLOCK_DURATION)

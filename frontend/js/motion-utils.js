@@ -4,7 +4,7 @@
  * ES module — import into page JS modules.
  */
 
-import { animate, stagger } from 'https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.mjs';
+import { animate, stagger } from 'https://cdn.jsdelivr.net/npm/motion@10.18.0/+esm';
 
 // ── Easing constants ─────────────────────────────────────────────────────────
 

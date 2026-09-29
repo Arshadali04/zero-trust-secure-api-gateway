@@ -106,6 +106,7 @@ def _evict_idle_ips():
 # ---------------------------------------------------------------------------
 _EXEMPT_PREFIXES = (
     "/health", "/docs", "/redoc", "/openapi", "/frontend", "/favicon",
+    "/metrics",
     "/auth/oauth", "/auth/callback",  # OAuth login + callback must never be risk-blocked
 )
 

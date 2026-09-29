@@ -91,6 +91,7 @@ RISK_SCORES = {
 # ---------------------------------------------------------------------------
 _EXEMPT_PREFIXES = (
     "/docs", "/redoc", "/openapi", "/health", "/frontend", "/favicon",
+    "/metrics",
     "/auth/oauth", "/auth/callback",  # OAuth login + callback must never be WAF-blocked
 )
 
