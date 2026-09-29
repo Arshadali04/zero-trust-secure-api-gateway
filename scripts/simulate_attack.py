@@ -18,9 +18,9 @@ Then in another terminal:
     python scripts/simulate_attack.py
 """
 
-import urllib.request
-import urllib.error
 import time
+import urllib.error
+import urllib.request
 
 # ── Configuration ────────────────────────────────────────────────────────────
 BASE_URL = "http://127.0.0.1:8000"

@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Dashboard — Zero Trust Gateway</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/scene.css">
   <link rel="stylesheet" href="css/components.css">
@@ -40,11 +43,13 @@
       border-radius: 10px;
       transition: border-color 0.2s, background 0.2s;
     }
+
     .panel-sm:hover {
       background: var(--glass-hover);
     }
   </style>
 </head>
+
 <body>
 
   <!-- WebGL background canvas -->
@@ -56,12 +61,14 @@
     <nav class="topbar">
       <div class="topbar-inner container">
         <a href="dashboard.html" class="topbar-brand">
-          <span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <span
+            style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </span>
-          ZeroTrust<span class="accent-text">GW</span>
+          ZeroTrust
         </a>
         <div class="topbar-right">
           <nav class="topbar-nav">
@@ -99,12 +106,24 @@
 
           <!-- Risk score metric -->
           <div class="metric-card panel">
-            <div class="metric-label">Account Risk Score</div>
+            <div class="flex-between">
+              <div class="metric-label">Account Risk Score</div>
+              <span id="riskTierBadge" class="badge badge-ok"
+                style="font-size:0.7rem;text-transform:uppercase">LOW</span>
+            </div>
             <div class="metric-value" id="riskValue" style="color:var(--success)">--</div>
             <div class="risk-gauge-wrap">
               <div class="risk-bar-track">
                 <div class="risk-bar-fill risk-low" id="riskFill" style="width:0%"></div>
               </div>
+            </div>
+            <div class="flex-between mt-8" style="font-size:0.75rem;font-family:var(--mono)">
+              <span class="text-dim">Policy Action:</span>
+              <span id="riskPolicyText" style="color:var(--success)">Standard (Allow)</span>
+            </div>
+            <div class="flex-between" style="font-size:0.72rem;font-family:var(--mono);margin-top:3px">
+              <span class="text-dim">4h Self-Healing:</span>
+              <span id="riskDecayText" class="text-dim">Active (Decays to 0)</span>
             </div>
           </div>
 
@@ -147,21 +166,71 @@
 
         </div><!-- .metric-grid -->
 
-        <!-- Live Proxy Test -->
+        <!-- Live Proxy & Risk Defense Test -->
         <div class="panel mb-16">
           <div class="panel-header">
-            <h3 style="font-size:0.95rem;font-weight:700">Live Proxy Test</h3>
-            <div class="flex-row">
-              <select class="form-select btn-sm" id="proxyEndpointSel" style="font-family:var(--mono);font-size:0.8rem;width:auto">
-                <option value="data/status">GET /api/v1/data/status (Service: data - 8001)</option>
-                <option value="data/hello">GET /api/v1/data/hello (Service: data - 8001)</option>
-                <option value="demo/hello">GET /api/v1/demo/hello (Service: demo - 8002)</option>
-                <option value="demo/test">GET /api/v1/demo/test (Service: demo - 8002)</option>
+            <div>
+              <h3 style="font-size:0.95rem;font-weight:700">Live Proxy & Zero Trust Defense Test</h3>
+              <p class="text-dim" style="font-size:0.75rem;margin-top:2px">Test legitimate traffic or trigger real-time
+                threat vectors to watch Gateway risk scoring and WAF defense in action.</p>
+            </div>
+            <div class="flex-row" style="flex-wrap:wrap;gap:8px">
+              <select class="form-select btn-sm" id="proxyEndpointSel"
+                style="font-family:var(--mono);font-size:0.8rem;width:auto;max-width:320px">
+                <optgroup label="✅ Legitimate Traffic (Normal Risk)">
+                  <option value="data/hello">GET /api/v1/data/hello (Microservice: data - 8001)</option>
+                  <option value="data/status">GET /api/v1/data/status (Microservice: data - 8001)</option>
+                  <option value="demo/hello">GET /api/v1/demo/hello (Microservice: demo - 8002)</option>
+                  <option value="demo/test">GET /api/v1/demo/test (Microservice: demo - 8002)</option>
+                </optgroup>
+                <optgroup label="⚠️ Threat Simulation (Triggers Risk & WAF)">
+                  <option value="data/hello?q=1'%20OR%20'1'='1">SQL Injection Vector (WAF Block 403 & Elevate Risk)
+                  </option>
+                  <option value="data/hello?q=<script>alert('xss')</script>">XSS Script Vector (WAF Block 403 & Elevate
+                    Risk)</option>
+                  <option value="data/../../etc/passwd">Path Traversal Vector (WAF Block 403 & Elevate Risk)</option>
+                </optgroup>
               </select>
               <button class="btn btn-primary btn-sm" id="proxyBtn">Call API</button>
+              <button class="btn btn-dim btn-sm text-alert" id="burstRiskBtn"
+                title="Send 45 rapid authenticated requests to test velocity engine">⚡ Test Traffic Burst (45
+                Reqs)</button>
             </div>
           </div>
-          <div id="proxyResult" style="font-family:var(--mono);font-size:0.8rem;color:var(--muted);white-space:pre-wrap;min-height:40px;padding:10px 12px;background:var(--bg3);border-radius:6px;overflow-x:auto;line-height:1.6">
+
+          <!-- Real-Time Gateway Security Verdict Inspection Bar -->
+          <div id="proxyInspectionBar"
+            style="display:none;margin-bottom:12px;padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
+            <div
+              style="font-size:0.72rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">
+              Gateway Zero Trust Verdict (Evaluated at Edge Middleware)
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+              <div>
+                <div style="font-size:0.7rem;color:var(--dim)">Request Risk Score</div>
+                <div id="inspectScore"
+                  style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--success)">--</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem;color:var(--dim)">Gateway Action</div>
+                <div id="inspectAction"
+                  style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--success)">ALLOW</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem;color:var(--dim)">WAF Inspection</div>
+                <div id="inspectWaf"
+                  style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--success)">CLEAN</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem;color:var(--dim)">Rate Limit Window</div>
+                <div id="inspectRate" style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--muted)">
+                  -- remaining</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="proxyResult"
+            style="font-family:var(--mono);font-size:0.8rem;color:var(--muted);white-space:pre-wrap;min-height:40px;padding:10px 12px;background:var(--bg3);border-radius:6px;overflow-x:auto;line-height:1.6">
             Select an endpoint and click "Call API" to test the reverse proxy.
           </div>
         </div>
@@ -219,4 +288,5 @@
   <script type="module" src="js/pages/dashboard.js"></script>
 
 </body>
+
 </html>

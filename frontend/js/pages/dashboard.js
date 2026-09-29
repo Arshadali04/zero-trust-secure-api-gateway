@@ -41,12 +41,15 @@ function formatExpiry(exp) {
 }
 
 /**
- * Set the risk gauge + color based on a 0-1 score.
+ * Set the risk gauge + color + tier badge based on a 0-1 score.
  * @param {number|null} score
  */
-function renderRisk(score) {
-  const valueEl = document.getElementById('riskValue');
-  const fillEl  = document.getElementById('riskFill');
+function renderRisk(score, userObj) {
+  const valueEl     = document.getElementById('riskValue');
+  const fillEl      = document.getElementById('riskFill');
+  const badgeEl     = document.getElementById('riskTierBadge');
+  const policyEl    = document.getElementById('riskPolicyText');
+  const decayTextEl = document.getElementById('riskDecayText');
   if (!valueEl || !fillEl) return;
 
   if (score === null || score === undefined || isNaN(score)) {
@@ -54,26 +57,49 @@ function renderRisk(score) {
     valueEl.style.color = 'var(--dim)';
     fillEl.style.width = '0%';
     fillEl.className = 'risk-bar-fill risk-low';
+    if (badgeEl) { badgeEl.textContent = 'UNKNOWN'; badgeEl.className = 'badge badge-dim'; }
     return;
   }
 
-  const pct = Math.min(100, Math.max(0, score * 100));
-  valueEl.textContent = pct.toFixed(0) + '%';
+  const pct = Math.round(Math.min(100, Math.max(0, score * 100)));
+  valueEl.textContent = pct + '%';
   fillEl.style.width = pct + '%';
+
+  const isAdmin = (userObj && userObj.role === 'admin') || (window.Auth && window.Auth.getCurrentUser && window.Auth.getCurrentUser()?.role === 'admin');
 
   if (score < 0.3) {
     valueEl.style.color = 'var(--success)';
     fillEl.className = 'risk-bar-fill risk-low';
-  } else if (score < 0.7) {
+    if (badgeEl) { badgeEl.textContent = 'LOW'; badgeEl.className = 'badge badge-ok'; }
+    if (policyEl) { policyEl.textContent = 'Standard Access (Allow)'; policyEl.style.color = 'var(--success)'; }
+  } else if (score < 0.55) {
     valueEl.style.color = 'var(--warning)';
     fillEl.className = 'risk-bar-fill risk-med';
+    if (badgeEl) { badgeEl.textContent = 'MEDIUM'; badgeEl.className = 'badge badge-warn'; }
+    if (policyEl) { policyEl.textContent = 'Monitored Traffic (Elevated)'; policyEl.style.color = 'var(--warning)'; }
+  } else if (score < 0.85) {
+    valueEl.style.color = 'var(--alert)';
+    fillEl.className = 'risk-bar-fill risk-high';
+    if (badgeEl) { badgeEl.textContent = 'HIGH'; badgeEl.className = 'badge badge-alert'; }
+    if (policyEl) { policyEl.textContent = 'Step-Up Required (Sensitive Gated)'; policyEl.style.color = 'var(--alert)'; }
   } else {
     valueEl.style.color = 'var(--alert)';
     fillEl.className = 'risk-bar-fill risk-high';
+    if (badgeEl) { badgeEl.textContent = 'CRITICAL'; badgeEl.className = 'badge badge-alert'; }
+    if (policyEl) {
+      policyEl.textContent = isAdmin
+        ? 'Critical Risk (Admin Protection: Unfrozen)'
+        : 'Account Frozen (Sessions Revoked)';
+      policyEl.style.color = 'var(--alert)';
+    }
+  }
+
+  if (decayTextEl) {
+    decayTextEl.textContent = score > 0.05 ? 'Healing via 4h Exponential Decay' : 'Clean Standing (Baseline)';
   }
 
   // Animated count-up for the percentage value
-  countUp(valueEl, pct, { suffix: '%', duration: 900 });
+  countUp(valueEl, pct, { suffix: '%', duration: 700 });
 
   // Energy meter (segmented Tron-style bar) if element exists
   fillEnergyMeter(document.getElementById('riskEnergyMeter'), score);
@@ -125,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Risk score
     const rawScore = typeof u.risk_score === 'number' ? u.risk_score : null;
-    renderRisk(rawScore);
+    renderRisk(rawScore, u);
 
     // Account status
     const mfaDot  = document.getElementById('mfaStatusDot');
@@ -206,6 +232,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (healthDetail) { healthDetail.textContent = 'Cannot reach backend'; }
   }
 
+  // ── Gateway inspection helper ──────────────────────────────────────────
+  function updateInspectionBar(secHeaders) {
+    const bar = document.getElementById('proxyInspectionBar');
+    if (!bar) return;
+    bar.style.display = '';
+
+    const scoreEl  = document.getElementById('inspectScore');
+    const actionEl = document.getElementById('inspectAction');
+    const wafEl    = document.getElementById('inspectWaf');
+    const rateEl   = document.getElementById('inspectRate');
+
+    const rawScore = (secHeaders && secHeaders.riskScore != null)
+      ? parseFloat(secHeaders.riskScore)
+      : ((secHeaders && secHeaders.wafRiskScore != null) ? parseFloat(secHeaders.wafRiskScore) : 0.015);
+    const scorePct = Math.round(rawScore * 100);
+    const action   = (secHeaders && secHeaders.riskAction) ? String(secHeaders.riskAction).toUpperCase() : 'ALLOW';
+    const waf      = (secHeaders && secHeaders.wafBlocked) ? `BLOCKED (${secHeaders.wafBlocked})` : 'CLEAN';
+    const rate     = (secHeaders && secHeaders.rateLimitRemaining != null) ? `${secHeaders.rateLimitRemaining} reqs left` : 'Normal window';
+
+    if (scoreEl) {
+      scoreEl.textContent = `${scorePct}% (${rawScore.toFixed(3)})`;
+      scoreEl.style.color = rawScore < 0.4 ? 'var(--success)' : (rawScore < 0.8 ? 'var(--warning)' : 'var(--alert)');
+    }
+    if (actionEl) {
+      actionEl.textContent = action;
+      actionEl.style.color = (action === 'ALLOW') ? 'var(--success)' : (action === 'MONITOR' ? 'var(--warning)' : 'var(--alert)');
+    }
+    if (wafEl) {
+      wafEl.textContent = waf;
+      wafEl.style.color = (waf === 'CLEAN') ? 'var(--success)' : 'var(--alert)';
+    }
+    if (rateEl) {
+      rateEl.textContent = rate;
+      rateEl.style.color = 'var(--dim)';
+    }
+  }
+
   // 11. Proxy test button
   const proxyBtn = document.getElementById('proxyBtn');
   const proxyResult = document.getElementById('proxyResult');
@@ -214,24 +277,60 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (proxyBtn && proxyResult && proxyEndpointSel) {
     proxyBtn.addEventListener('click', async () => {
       proxyBtn.disabled = true;
-      proxyBtn.textContent = 'Calling...';
+      proxyBtn.textContent = 'Evaluating...';
       proxyResult.style.color = 'var(--dim)';
-      proxyResult.textContent = 'Sending request...';
+      proxyResult.textContent = 'Sending request through Zero Trust Gateway middleware pipeline...';
       try {
         const data = await API.proxyRequest(proxyEndpointSel.value);
+        updateInspectionBar(API.lastSecurityHeaders);
         proxyResult.style.color = 'var(--success)';
         proxyResult.textContent = JSON.stringify(data, null, 2);
       } catch (err) {
+        updateInspectionBar((err && err.headers) || API.lastSecurityHeaders);
         proxyResult.style.color = 'var(--alert)';
         const msg = (err && err.data && err.data.detail)
           ? String(err.data.detail)
           : (err && err.message ? err.message : 'Request failed (status ' + (err && err.status ? err.status : '?') + ')');
-        proxyResult.textContent = 'Error ' + (err && err.status ? err.status : '') + ': ' + msg;
+        proxyResult.textContent = 'Gateway Intervention [Status ' + (err && err.status ? err.status : '') + ']: ' + msg;
       } finally {
         proxyBtn.disabled = false;
         proxyBtn.textContent = 'Call API';
-        refreshUserData();
+        setTimeout(() => refreshUserData(), 250);
       }
+    });
+  }
+
+  // 12. Traffic Burst Risk Test button
+  const burstRiskBtn = document.getElementById('burstRiskBtn');
+  if (burstRiskBtn && proxyBtn && proxyResult) {
+    burstRiskBtn.addEventListener('click', async () => {
+      burstRiskBtn.disabled = true;
+      proxyBtn.disabled = true;
+      proxyResult.style.color = 'var(--dim)';
+      proxyResult.textContent = '⚡ Starting rapid traffic burst to test behavioral velocity engine...\n';
+
+      const total = 45;
+      let okCount = 0;
+      let blockedCount = 0;
+
+      for (let i = 1; i <= total; i++) {
+        proxyResult.textContent = `⚡ Firing burst request ${i}/${total} to /api/v1/data/hello...`;
+        try {
+          await API.proxyRequest('data/hello');
+          okCount++;
+        } catch (e) {
+          blockedCount++;
+        }
+        await new Promise(r => setTimeout(r, 20));
+      }
+
+      updateInspectionBar(API.lastSecurityHeaders);
+      proxyResult.style.color = 'var(--success)';
+      proxyResult.textContent = `✅ Traffic burst complete!\n- Sent: ${total} requests\n- Processed: ${okCount}\n- Throttled/Blocked: ${blockedCount}\n\nBehavioral velocity engine evaluated traffic spike. Syncing Account Risk Score...`;
+
+      await refreshUserData();
+      burstRiskBtn.disabled = false;
+      proxyBtn.disabled = false;
     });
   }
 

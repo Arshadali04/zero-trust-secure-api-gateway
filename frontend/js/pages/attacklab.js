@@ -214,19 +214,31 @@ function updateSparkline(samples) {
 
   if (scores.length < 2) return;
 
-  const maxV  = Math.max(...scores, 0.01);
-  const minV  = Math.min(...scores, 0);
-  const range = maxV - minV || 0.01;
-  const pad   = 6;
+  // Fixed risk domain [0.0, 1.0] so vertical position reflects actual risk
+  // (low near bottom, high/critical near top), preventing flatline distortion
+  const minV  = 0.0;
+  const maxV  = Math.max(1.0, ...scores);
+  const range = maxV - minV;
+  const pad   = 8;
   const n     = scores.length;
 
-  const xs = scores.map((_, i) => pad + (i / (n - 1)) * (w - pad * 2));
-  const ys = scores.map(s => h - pad - ((s - minV) / range) * (h - pad * 2));
+  const xs = scores.map((_, i) => pad + (i / Math.max(1, n - 1)) * (w - pad * 2));
+  const ys = scores.map(s => {
+    const clamped = Math.max(0, Math.min(1.0, s));
+    return h - pad - (clamped / range) * (h - pad * 2);
+  });
+
+  const latestScore = scores[scores.length - 1];
+  const isHigh = latestScore > 0.65;
+  const isMed  = latestScore > 0.35;
+  const strokeColor = isHigh ? '#ff5d5d' : (isMed ? '#ffb636' : '#5b8cff');
+  const glowColor   = isHigh ? 'rgba(255,93,93,0.35)' : (isMed ? 'rgba(255,182,54,0.35)' : 'rgba(91,140,255,0.28)');
+  const gradTop     = isHigh ? 'rgba(255,93,93,0.28)' : (isMed ? 'rgba(255,182,54,0.25)' : 'rgba(91,140,255,0.22)');
 
   // Filled gradient area
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, 'rgba(91,140,255,0.22)');
-  grad.addColorStop(1, 'rgba(91,140,255,0)');
+  grad.addColorStop(0, gradTop);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.beginPath();
   ctx.moveTo(xs[0], h);
@@ -241,8 +253,8 @@ function updateSparkline(samples) {
   ctx.beginPath();
   ctx.moveTo(xs[0], ys[0]);
   for (let i = 1; i < n; i++) ctx.lineTo(xs[i], ys[i]);
-  ctx.strokeStyle = '#5b8cff';
-  ctx.lineWidth   = 2;
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth   = 2.5;
   ctx.lineJoin    = 'round';
   ctx.lineCap     = 'round';
   ctx.stroke();
@@ -253,13 +265,13 @@ function updateSparkline(samples) {
 
   ctx.beginPath();
   ctx.arc(lx, ly, 7, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(91,140,255,0.28)';
+  ctx.strokeStyle = glowColor;
   ctx.lineWidth   = 3;
   ctx.stroke();
 
   ctx.beginPath();
   ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
-  ctx.fillStyle = '#5b8cff';
+  ctx.fillStyle = strokeColor;
   ctx.fill();
 }
 
@@ -274,17 +286,22 @@ function updateRiskGauge(score) {
   const val  = $id('riskVal');
   if (!fill || !val) return;
 
-  const pct = Math.min(100, score * 100);
+  const validScore = Math.max(0, Math.min(1.0, isNaN(score) ? 0 : score));
+  const pct = Math.min(100, Math.round(validScore * 100));
   fill.style.width = pct + '%';
-  val.textContent  = score.toFixed(2);
+  val.textContent  = validScore.toFixed(2);
 
-  const cls = score > 0.65 ? 'risk-high' : score > 0.35 ? 'risk-med' : 'risk-low';
+  const cls = validScore > 0.65 ? 'risk-high' : validScore > 0.35 ? 'risk-med' : 'risk-low';
   fill.className = 'risk-bar-fill ' + cls;
   val.className  = 'risk-value '    + cls;
 
-  // Sync ARIA
-  const gauge = fill.closest('[role="meter"]');
-  if (gauge) gauge.setAttribute('aria-valuenow', score.toFixed(2));
+  // Sync parent meter and ARIA
+  const gauge = fill.closest('.risk-gauge-wrap') || fill.closest('[role="meter"]');
+  if (gauge) {
+    gauge.setAttribute('aria-valuenow', validScore.toFixed(2));
+    gauge.classList.remove('risk-low', 'risk-med', 'risk-high');
+    gauge.classList.add(cls);
+  }
 }
 
 // ─── State update ─────────────────────────────────────────────────────────────

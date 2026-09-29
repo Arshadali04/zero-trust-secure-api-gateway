@@ -168,8 +168,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 elapsed_ms=elapsed_ms,
             )
 
-            # ── Behavioural profiling (every authenticated request) ────────────
-            if user_email and status_code < 500:
+            # ── Behavioural profiling (only for API/service traffic) ───────────
+            # Only profile proxied microservice endpoints (/api/v1/*).
+            # Gateway management, admin console, auth endpoints, and UI polling
+            # must NEVER count toward velocity profiling, or normal UI navigation
+            # triggers false-positive rate anomalies.
+            if user_email and status_code < 500 and path.startswith("/api/v1/"):
                 content_len = 0
                 try:
                     content_len = int(request.headers.get("Content-Length", 0) or 0)

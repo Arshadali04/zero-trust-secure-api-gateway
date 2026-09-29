@@ -90,6 +90,18 @@ window.API = {
       data = null;
     }
 
+    // Extract Zero Trust Gateway security headers on every response
+    var secHeaders = {
+      riskScore: response.headers ? response.headers.get("x-risk-score") : null,
+      riskAction: response.headers ? response.headers.get("x-risk-action") : null,
+      wafBlocked: response.headers ? response.headers.get("x-waf-blocked") : null,
+      wafRiskScore: response.headers ? response.headers.get("x-waf-risk-score") : null,
+      rateLimitRemaining: response.headers ? response.headers.get("x-ratelimit-remaining") : null,
+      requestId: response.headers ? response.headers.get("x-request-id") : null,
+      statusCode: response.status,
+    };
+    this.lastSecurityHeaders = secHeaders;
+
     if (!response.ok) {
       // 401 — refresh the access token and retry, but only ONCE.
       //
@@ -123,7 +135,7 @@ window.API = {
           window.location.replace("login.html");
           return;
         }
-        throw { status: response.status, data: data };
+        throw { status: response.status, data: data, headers: secHeaders };
       }
 
       // 403 stepup_required — redirect to step-up verification page
@@ -140,7 +152,7 @@ window.API = {
         return;
       }
 
-      throw { status: response.status, data: data };
+      throw { status: response.status, data: data, headers: secHeaders };
     }
 
     return data;

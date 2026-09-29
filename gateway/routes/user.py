@@ -140,10 +140,12 @@ async def unfreeze_user(
     for fr in freezes:
         await db.delete(fr)
 
-    # Also clear legacy account-level freeze (back-compat)
+    # Also clear legacy account-level freeze (back-compat) and restore clean risk score
     user.account_frozen_until = None
     user.stepup_required = False
     user.stepup_since = None
+    user.risk_score = 0.0
+    user.risk_updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
 
     return {

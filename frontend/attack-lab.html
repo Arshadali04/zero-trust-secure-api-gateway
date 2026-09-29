@@ -404,11 +404,24 @@
       min-width: 48px;
       text-align: right;
       transition: color 0.5s;
+      background: transparent !important;
     }
 
-    .risk-low  { background: var(--success); color: var(--success); }
-    .risk-med  { background: var(--warning); color: var(--warning); }
-    .risk-high { background: var(--alert);   color: var(--alert);   }
+    .risk-bar-fill.risk-low  { background: var(--success); }
+    .risk-bar-fill.risk-med  { background: var(--warning); }
+    .risk-bar-fill.risk-high { background: var(--alert);   }
+
+    .risk-value.risk-low  { color: var(--success); }
+    .risk-value.risk-med  { color: var(--warning); }
+    .risk-value.risk-high { color: var(--alert);   }
+
+    .risk-low .risk-bar-fill  { background: var(--success); }
+    .risk-med .risk-bar-fill  { background: var(--warning); }
+    .risk-high .risk-bar-fill { background: var(--alert);   }
+
+    .risk-low .risk-value  { color: var(--success); }
+    .risk-med .risk-value  { color: var(--warning); }
+    .risk-high .risk-value { color: var(--alert);   }
 
     /* ─── Event log ──────────────────────────────────────────────────────────── */
     .event-log {

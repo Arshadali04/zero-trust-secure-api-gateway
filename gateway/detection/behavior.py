@@ -75,6 +75,12 @@ def _evict_idle_keys():
                 del store[k]
 
 
+def _recent_event_count(store: dict[int, deque], user_id: int, window: float = 10.0) -> int:
+    cutoff = time.monotonic() - window
+    with _lock:
+        return sum(1 for ts in store.get(user_id, []) if ts >= cutoff)
+
+
 def record_user_request(user_id: int) -> int:
     """Record one authenticated request and return count in the last minute."""
     return _count_event(_user_requests, user_id)
@@ -109,6 +115,7 @@ async def update_behavior_profile(
     from gateway.detection.ml_anomaly import score_user
 
     rpm = record_user_request(user_id)
+    recent_10s = _recent_event_count(_user_requests, user_id, 10.0)
     failed = _count_event(_user_failures, user_id)
 
     result = await db.execute(select(BehaviorProfile).where(BehaviorProfile.user_id == user_id))
@@ -134,11 +141,11 @@ async def update_behavior_profile(
     # (4 rps → 40 requests in 10 s) climbs past it within the demo window.
     baseline = max(1.0, min(baseline, 10.0))
 
-    # Hard floor of 50/min keeps the rule from firing on trivial traffic
-    # (normal dashboard browsing generates ~6-9 req/min from polling + page
-    # loads).  A flood at 3+ rps (~180 req/min) still trips it instantly.
-    threshold = max(50, baseline * 3)
-    if rpm > threshold:
+    # Threshold: at least 40 requests/min and actively sending requests
+    # in the recent 10s window (>= 5 req in 10s, i.e. >= 30 req/min active rate)
+    # to ensure quiet clicks after a burst don't falsely re-trigger anomalies.
+    threshold = max(40, baseline * 3.0)
+    if rpm > threshold and recent_10s >= 5:
         anomaly = {
             "threat_type": "behavior_anomaly",
             "risk_score": min(0.55 + (rpm / max(baseline, 1.0)) / 10, 0.95),

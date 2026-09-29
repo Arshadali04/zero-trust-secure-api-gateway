@@ -152,8 +152,9 @@ function emptyRow(cols, msg) {
 /**
  * Render (or re-render) the users table with the given user array.
  * @param {Array<object>} users
+ * @param {boolean} [shouldAnimate=false]
  */
-function renderUsersTable(users) {
+function renderUsersTable(users, shouldAnimate = false) {
   const tbody = document.getElementById('usersBody');
   if (!tbody) return;
 
@@ -226,7 +227,9 @@ function renderUsersTable(users) {
     </tr>`;
   }).join('');
 
-  revealTableRows(tbody); // Motion: stagger rows in
+  if (shouldAnimate) {
+    revealTableRows(tbody); // Motion: only stagger rows in on initial load
+  }
 }
 
 // ── Render: Audit Logs ───────────────────────────────────────────────────────
@@ -295,17 +298,22 @@ function renderEventsTable(events) {
   }).join('');
 }
 
-// ── Data loaders ─────────────────────────────────────────────────────────────
+let previousUsersSnapshot = '';
 
 /**
  * Fetch all admin users, update metric cards, and re-render the table.
+ * @param {boolean} [isInitial=false] — true on explicit page load / manual refresh
  */
-async function loadUsers() {
+async function loadUsers(isInitial = false) {
   const tbody = document.getElementById('usersBody');
-  if (tbody) tbody.innerHTML = loadingRow(6);
+  // Only display the loading row on explicit initial load when empty
+  if (isInitial && tbody && (!allUsers || allUsers.length === 0)) {
+    tbody.innerHTML = loadingRow(6);
+  }
 
   try {
-    allUsers = await API.getAdminUsers() || [];
+    const fetched = await API.getAdminUsers() || [];
+    allUsers = fetched;
 
     // Update metric cards
     const setMetric = (id, val) => {
@@ -324,9 +332,26 @@ async function loadUsers() {
       return fu && fu > now;
     }).length);
 
-    renderUsersTable(allUsers);
+    // Snapshot key user state attributes to detect changes
+    const snapshot = JSON.stringify(allUsers.map(u => [
+      u.id, u.email, u.username, u.role, u.is_active, u.account_frozen_until, u.risk_score
+    ]));
+
+    // Check if search filter is currently applied
+    const searchInput = document.getElementById('userSearch');
+    const q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    if (isInitial || snapshot !== previousUsersSnapshot) {
+      previousUsersSnapshot = snapshot;
+      const displayUsers = q
+        ? allUsers.filter(u => (u.email || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q))
+        : allUsers;
+      renderUsersTable(displayUsers, isInitial);
+    }
   } catch (err) {
-    if (tbody) tbody.innerHTML = errorRow(6, 'Failed to load users. Check admin permissions.');
+    if (isInitial && tbody) {
+      tbody.innerHTML = errorRow(6, 'Failed to load users. Check admin permissions.');
+    }
   }
 }
 
@@ -423,12 +448,14 @@ async function handleRoleChange(id, newRole) {
   try {
     await API.updateUserRole(id, newRole);
     if (window.UI) UI.showSuccess(`Role updated to "${newRole}".`);
-    await loadUsers();
+    previousUsersSnapshot = '';
+    await loadUsers(false);
   } catch (err) {
     const msg = (window._extractError && _extractError(err)) || 'Failed to update role.';
     if (window.UI) UI.showError(msg);
     // Re-render to reset the select to the actual value
-    await loadUsers();
+    previousUsersSnapshot = '';
+    await loadUsers(false);
   }
 }
 
@@ -441,7 +468,8 @@ async function handleUnfreeze(id) {
   try {
     await API.unfreezeUser(id);
     if (window.UI) UI.showSuccess(`Account #${id} has been unfrozen.`);
-    await loadUsers();
+    previousUsersSnapshot = '';
+    await loadUsers(false);
   } catch (err) {
     const msg = (window._extractError && _extractError(err)) || 'Failed to unfreeze account.';
     if (window.UI) UI.showError(msg);
@@ -458,7 +486,8 @@ async function handleFreeze(id, email) {
   try {
     await API.freezeUser(id);
     if (window.UI) UI.showSuccess(`Account #${id} (${email}) has been frozen.`);
-    await loadUsers();
+    previousUsersSnapshot = '';
+    await loadUsers(false);
   } catch (err) {
     const msg = (window._extractError && _extractError(err)) || 'Failed to freeze account.';
     if (window.UI) UI.showError(msg);
@@ -475,7 +504,8 @@ async function handleDelete(id, email) {
   try {
     await API.deleteUser(id);
     if (window.UI) UI.showSuccess('User deleted.');
-    await loadUsers();
+    previousUsersSnapshot = '';
+    await loadUsers(false);
   } catch (err) {
     const msg = (window._extractError && _extractError(err)) || 'Failed to delete user.';
     if (window.UI) UI.showError(msg);
@@ -570,17 +600,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (logoutBtn) logoutBtn.addEventListener('click', () => Auth.logout());
 
   // 10. Initial data load (users tab is active by default)
-  await loadUsers();
+  await loadUsers(true);
 
-  // Periodic refresh so frozen account count and security status stay live
+  // Periodic refresh so frozen account count and security status stay live without DOM blinking
   setInterval(() => {
     const usersPanel = document.getElementById('panel-users');
     if (!document.hidden && usersPanel && usersPanel.classList.contains('active')) {
-      loadUsers();
+      loadUsers(false);
     }
   }, 4000);
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) loadUsers();
+    if (!document.hidden) loadUsers(false);
   });
 });

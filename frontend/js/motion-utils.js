@@ -105,13 +105,19 @@ export function pulseGlow(el, color = 'rgba(91,140,255,0.5)') {
  */
 export function countUp(el, target, opts = {}) {
   if (!el || !isFinite(target)) return;
-  const { duration = 1200, suffix = '', decimals = 0 } = opts;
+  const { duration = 800, suffix = '', decimals = 0 } = opts;
+  const startVal = isFinite(parseFloat(el.textContent)) ? parseFloat(el.textContent) : 0;
+  if (Math.abs(startVal - target) < 0.001) {
+    el.textContent = target.toFixed(decimals) + suffix;
+    return;
+  }
   const t0 = performance.now();
 
   function tick(now) {
     const elapsed = Math.min(now - t0, duration);
     const progress = 1 - Math.pow(1 - elapsed / duration, 3); // ease-out cubic
-    el.textContent = (target * progress).toFixed(decimals) + suffix;
+    const val = startVal + (target - startVal) * progress;
+    el.textContent = val.toFixed(decimals) + suffix;
     if (elapsed < duration) requestAnimationFrame(tick);
     else el.textContent = target.toFixed(decimals) + suffix;
   }
