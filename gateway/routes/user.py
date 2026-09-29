@@ -169,6 +169,7 @@ async def freeze_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     from sqlalchemy import delete
+
     from gateway.config import settings
     from gateway.db.models import AccountFreeze, RefreshToken
     from gateway.detection.account_risk import _naive_utc_now
@@ -190,7 +191,6 @@ async def freeze_user(
         "email": user.email,
         "frozen_until": freeze_until.replace(tzinfo=timezone.utc).isoformat(),
     }
-
 
 
 @router.get("/admin/audit-logs", response_model=list[AuditLogResponse])
