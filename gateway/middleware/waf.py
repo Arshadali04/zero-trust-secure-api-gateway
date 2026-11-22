@@ -23,6 +23,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from gateway.config import settings
 from gateway.core.client_ip import get_client_ip
 from gateway.db.database import AsyncSessionLocal
 from gateway.db.models import SecurityEvent
@@ -281,6 +282,12 @@ class WAFMiddleware(BaseHTTPMiddleware):
                 body_bytes = await request.body()
                 body_text = body_bytes.decode("utf-8", errors="replace")
                 threat = _detect_threat(body_text)
+                if (
+                    threat == "ssrf"
+                    and path.startswith("/services")
+                    and getattr(settings, "ALLOW_UPSTREAM_PRIVATE", True)
+                ):
+                    threat = None
             except Exception as exc:
                 # A body we cannot read is a body we cannot inspect, so the
                 # request continues to the route with NO WAF coverage of its

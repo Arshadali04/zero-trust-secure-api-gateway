@@ -96,6 +96,7 @@ async def change_password(
 
     try:
         import asyncio
+
         from gateway.core.email import send_password_changed_email
         asyncio.create_task(send_password_changed_email(current_user.email))
     except Exception as exc:

@@ -72,14 +72,38 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.disabled    = true;
       btn.textContent = 'Sending…';
       try {
-        await window.API.forgotPassword(email);
+        const resp = await window.API.forgotPassword(email);
+        if (resp && resp.dev_reset_link) {
+          showAlert('Reset link generated! (Dev Mode: SMTP not configured in .env).', 'success');
+          let devBox = document.getElementById('devResetBox');
+          if (!devBox) {
+            devBox = document.createElement('div');
+            devBox.id = 'devResetBox';
+            devBox.style.marginTop = '16px';
+            devBox.style.padding = '12px 14px';
+            devBox.style.background = 'rgba(91,140,255,0.12)';
+            devBox.style.border = '1px solid rgba(91,140,255,0.3)';
+            devBox.style.borderRadius = '8px';
+            devBox.style.fontSize = '0.85rem';
+            devBox.style.lineHeight = '1.5';
+            forgotForm.appendChild(devBox);
+          }
+          devBox.innerHTML = `
+            <div style="font-weight:600;color:var(--accent);margin-bottom:6px;">⚠️ Dev Mode (No SMTP Configured)</div>
+            <div style="color:var(--muted);font-size:0.8rem;margin-bottom:8px;">A real email was not sent because SMTP is unconfigured in <code>.env</code>. You can reset immediately using the link below:</div>
+            <a href="${resp.dev_reset_link}" style="color:var(--success);font-weight:600;text-decoration:underline;word-break:break-all;">Click here to reset your password &rarr;</a>
+          `;
+          devBox.style.display = 'block';
+        } else {
+          showAlert('If this email is registered, you will receive a reset link in your inbox shortly.', 'success');
+        }
       } catch (_) {
         // Always show success — never reveal whether the account exists
+        showAlert('If this email is registered, you will receive a reset link.', 'success');
       } finally {
         btn.disabled    = false;
         btn.textContent = 'Send reset link';
       }
-      showAlert('If this email is registered, you will receive a reset link.', 'success');
     });
     return; // nothing else to set up on the forgot-password page
   }
@@ -88,8 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetForm = document.getElementById('resetForm');
   if (!resetForm) return;
 
-  // Extract token from URL hash: /reset-password.html#token=<value>
-  const token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
+  // Extract token from URL hash (#token=<value>) or search param (?token=<value>)
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const searchParams = new URLSearchParams(window.location.search);
+  const token = hashParams.get('token') || searchParams.get('token');
 
   if (!token) {
     showAlert('Invalid or expired reset link. Please request a new one.');

@@ -115,4 +115,3 @@ def test_user_response_accepts_simulation_and_internal_domains():
     assert dump["username"] == "sim_attacker"
     assert dump["is_active"] is True
     assert dump["role"] == "user"
-

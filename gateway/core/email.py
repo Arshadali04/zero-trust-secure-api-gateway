@@ -15,12 +15,12 @@ Fault-tolerant design:
 """
 
 import asyncio
+import logging
+import smtplib
 from collections import deque
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import logging
-import smtplib
 from typing import Any
 
 from gateway.config import settings
@@ -144,10 +144,10 @@ async def send_email(to_email: str, subject: str, html_content: str, text_conten
     }
 
     # Check if real SMTP sending is requested & configured
-    can_send_smtp = (
-        bool(settings.EMAIL_ENABLED) and
-        bool(settings.SMTP_HOST) and
-        bool(settings.SMTP_USER)
+    can_send_smtp = bool(
+        settings.EMAIL_ENABLED
+        and settings.SMTP_HOST
+        and settings.SMTP_USER
     )
 
     if can_send_smtp:
@@ -187,7 +187,7 @@ async def send_password_reset_email(to_email: str, reset_link: str) -> dict[str,
     content_html = f"""
       <p style="margin-top: 0;">We received a request to reset the password for your Zero Trust Gateway account (<strong>{to_email}</strong>).</p>
       <p>Click the button below to choose a new, secure password:</p>
-      
+
       <div style="text-align: center; margin: 32px 0;">
         <a href="{reset_link}" style="display: inline-block; background: linear-gradient(135deg, #5b8cff, #3867d6); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 16px rgba(91,140,255,0.35);">Reset Password</a>
       </div>
@@ -294,7 +294,7 @@ async def send_password_changed_email(to_email: str) -> dict[str, Any]:
 
     content_html = f"""
       <p style="margin-top: 0;">This email confirms that the password for your Zero Trust Gateway account (<strong>{to_email}</strong>) was successfully changed on <strong>{now_str}</strong>.</p>
-      
+
       <div style="background: rgba(45,212,160,0.08); border-left: 4px solid #2dd4a0; padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 13px; color: #e2e8f0;">
         <strong>Security Enforced:</strong> All previous sessions and refresh tokens have been revoked. Any client or application using your old credentials must sign in again.
       </div>
@@ -317,4 +317,3 @@ If you did NOT make this change, please contact security immediately.
 
     html = _render_base_email(title, subtitle, content_html, badge_text="Security Update", badge_color="#2dd4a0")
     return await send_email(to_email, subject, html, content_text)
-

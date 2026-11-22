@@ -11,7 +11,7 @@ Unit tests for the Zero Trust Gateway email notification service:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -227,4 +227,3 @@ async def test_reset_password_dispatches_confirmation_email(client):
     assert len(outbox2) == 1
     assert outbox2[0]["to"] == email
     assert "Security Notice: Your Zero Trust Gateway password was changed" in outbox2[0]["subject"]
-

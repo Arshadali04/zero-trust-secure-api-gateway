@@ -304,7 +304,15 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
     except Exception as exc:
         logger.warning("Could not dispatch password reset email: %s", exc)
 
-    return {"message": "If that email is in our database, a reset link has been generated."}
+    can_send_real_email = bool(settings.EMAIL_ENABLED and settings.SMTP_HOST and settings.SMTP_USER)
+    res_data = {
+        "message": "If that email is in our database, a reset link has been generated.",
+        "email_dispatched": can_send_real_email,
+    }
+    if not can_send_real_email:
+        res_data["dev_reset_link"] = reset_link
+
+    return res_data
 
 
 @router.post("/reset-password")

@@ -21,16 +21,17 @@ from gateway.middleware.logging import RequestLoggingMiddleware
 from gateway.middleware.rate_limit import RateLimitMiddleware
 from gateway.middleware.risk_scoring import RiskScoringMiddleware
 from gateway.middleware.waf import WAFMiddleware
+from gateway.routes import analytics as analytics_routes
 from gateway.routes import apikeys as apikeys_routes
 from gateway.routes import attack_lab as attack_lab_routes
-from gateway.routes import auth, health
+from gateway.routes import auth
+from gateway.routes import events as events_routes
+from gateway.routes import health
 from gateway.routes import mfa as mfa_routes
 from gateway.routes import oauth as oauth_routes
 from gateway.routes import proxy as proxy_routes
 from gateway.routes import services as services_routes
 from gateway.routes import user
-from gateway.routes import analytics as analytics_routes
-from gateway.routes import events as events_routes
 
 logging.basicConfig(
     level=logging.INFO,
