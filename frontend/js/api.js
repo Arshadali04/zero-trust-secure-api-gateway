@@ -38,6 +38,9 @@ window._extractError = function _extractError(error, fallback) {
 
 window.API = {
   _base: (function () {
+    var configured = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL;
+    if (configured) return configured.replace(/\\/+$/, "");
+
     if (window.location.port && window.location.port !== "8000") {
       return (
         window.location.protocol +
@@ -402,3 +405,12 @@ window.API = {
   // `API.request(...)` callers repointed at them — those endpoints are live in
   // the UI, so the wrapper was the right layer and the duplication was the bug.
 };
+
+
+// When the frontend is hosted separately (for example on Vercel), OAuth
+// links must target the FastAPI backend rather than the static-site origin.
+if (typeof document !== "undefined" && window.API && window.API._base) {
+  document.querySelectorAll('a[href^="/auth/oauth/"]').forEach(function (link) {
+    link.href = window.API._base + link.getAttribute("href");
+  });
+}
