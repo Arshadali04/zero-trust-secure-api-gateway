@@ -91,6 +91,40 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("ML model load failed (non-fatal): %s", exc)
     _start_demo_backend()
+
+    # Seed demo admin if GATEWAY_DEMO is enabled
+    if os.environ.get("GATEWAY_DEMO", "1").lower() in ("1", "true", "yes"):
+        try:
+            from sqlalchemy import select
+
+            from gateway.core.security import SecurityManager
+            from gateway.db.database import AsyncSessionLocal
+            from gateway.db.models import User
+
+            async with AsyncSessionLocal() as session:
+                admin_email = "admin@gateway.com"
+                res = await session.execute(select(User).where(User.email == admin_email))
+                admin_user = res.scalar_one_or_none()
+                if not admin_user:
+                    demo_admin = User(
+                        email=admin_email,
+                        username="admin",
+                        full_name="System Administrator",
+                        hashed_password=SecurityManager.hash_password("Admin123!"),
+                        role="admin",
+                        is_active=True,
+                        risk_score=0.0,
+                        token_version=1,
+                    )
+                    session.add(demo_admin)
+                    await session.commit()
+                    logger.info("Demo admin user seeded: %s", admin_email)
+                elif admin_user.role != "admin":
+                    admin_user.role = "admin"
+                    await session.commit()
+        except Exception as exc:
+            logger.warning("Demo admin seed failed: %s", exc)
+
     yield
     # ── Shutdown ──────────────────────────────────────────────────────────────
     try:
