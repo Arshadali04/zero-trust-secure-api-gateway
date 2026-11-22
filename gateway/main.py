@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -251,6 +252,16 @@ app.mount("/frontend", StaticFiles(directory=os.path.join(PROJECT_ROOT, "fronten
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(status_code=204)
+
+
+@app.get("/login.html", include_in_schema=False)
+async def redirect_login():
+    return RedirectResponse(url="/frontend/login.html", status_code=302)
+
+
+@app.get("/index.html", include_in_schema=False)
+async def redirect_index():
+    return RedirectResponse(url="/frontend/index.html", status_code=302)
 
 
 @app.get("/")

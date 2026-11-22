@@ -88,3 +88,4 @@ site/
 # ── Docs / presentation materials (local only, not tracked in git) ────────────
 docs/
 .env.example
+cloudflared.exe

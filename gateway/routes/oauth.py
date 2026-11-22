@@ -185,10 +185,17 @@ async def upsert_oauth_user(
     return new_user
 
 
+def _get_oauth_frontend_redirect() -> str:
+    base = settings.FRONTEND_BASE_URL.rstrip("/")
+    if base.endswith("/frontend") or "vercel.app" in base:
+        return f"{base}/login.html?r=1"
+    return f"{base}/frontend/login.html?r=1"
+
+
 @router.get("/callback/google")
 async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
     """Google OAuth callback"""
-    frontend_base = settings.FRONTEND_BASE_URL.rstrip("/") + "/login.html?r=1"
+    frontend_base = _get_oauth_frontend_redirect()
 
     try:
         token = await oauth.google.authorize_access_token(request)
@@ -271,7 +278,7 @@ async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/callback/github")
 async def callback_github(request: Request, db: AsyncSession = Depends(get_db)):
     """GitHub OAuth callback"""
-    frontend_base = settings.FRONTEND_BASE_URL.rstrip("/") + "/login.html?r=1"
+    frontend_base = _get_oauth_frontend_redirect()
 
     try:
         token = await oauth.github.authorize_access_token(request)
