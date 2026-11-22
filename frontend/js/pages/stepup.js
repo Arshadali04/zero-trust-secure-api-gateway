@@ -61,8 +61,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyBtn = document.getElementById('verifyBtn');
   const signoutLink = document.getElementById('signoutLink');
 
-  // Check if current user has MFA enabled; if not, direct them to profile setup
+  // Check user state: provide admin reset shortcut and handle no-mfa guidance
   window.API.getMe().then(user => {
+    if (user && user.role === 'admin') {
+      const card = document.querySelector('.auth-card');
+      if (card && !document.getElementById('adminResetBtn')) {
+        const btn = document.createElement('button');
+        btn.id = 'adminResetBtn';
+        btn.className = 'btn btn-ghost btn-sm btn-full';
+        btn.style.cssText = 'margin-top: 14px; border: 1px solid var(--glass-border); color: var(--accent); font-size: 0.8rem;';
+        btn.textContent = '⚡ Admin: Reset Risk & Return to Dashboard';
+        btn.onclick = async (e) => {
+          e.preventDefault();
+          btn.disabled = true;
+          btn.textContent = 'Resetting risk...';
+          try {
+            await window.API.unfreezeUser(user.id);
+            window.location.replace('dashboard.html');
+          } catch (_) {
+            window.location.replace('dashboard.html');
+          }
+        };
+        const signoutDiv = document.querySelector('.stepup-signout');
+        if (signoutDiv) signoutDiv.parentNode.insertBefore(btn, signoutDiv);
+      }
+    }
     if (user && !user.mfa_enabled) {
       showAlert('Two-factor authentication is not yet enabled for this account. Set up 2FA in Profile to satisfy step-up verification.', 'error');
       const formGroup = document.querySelector('.form-group');

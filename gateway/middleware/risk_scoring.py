@@ -289,15 +289,15 @@ async def _elevate_authenticated_account_risk(
     if action == "waf_block":
         amount = 0.30
     elif action == "block":
-        amount = 0.35
+        amount = 0.20
     elif action == "challenge":
         if pattern_risk >= 0.5 or behavior_risk >= 0.6:
-            amount = 0.20
+            amount = 0.12
     elif action == "monitor":
         # Only elevate on monitor when the request already looks strongly
         # suspicious (scanner signature) or extreme burst behaviour.
         if pattern_risk >= 0.5 or behavior_risk >= 0.9:
-            amount = 0.12
+            amount = 0.08
 
     if amount <= 0.0:
         return
@@ -313,14 +313,11 @@ async def _elevate_authenticated_account_risk(
             user = result.scalar_one_or_none()
             if not user:
                 return
-            # A WAF block is a confirmed-malicious signal, not a heuristic, so
-            # it must not be swallowed by the 2-second per-account cooldown.
-            # The per-request elevation for this same request has usually just
-            # stamped risk_updated_at microseconds earlier, which meant the
-            # strongest available signal contributed nothing.
+            # Confirmed malicious WAF blocks bypass cooldown.
+            # Volumetric blocks and challenges respect cooldown to avoid slamming account risk.
             new_risk = await elevate_account_risk(
                 session, user.id, amount, ip=ip,
-                bypass_cooldown=(action in ("waf_block", "block")),
+                bypass_cooldown=(action == "waf_block"),
             )
             logger.warning(
                 "RiskScore policy elevate | user=%s ip=%s path=%s action=%s req_score=%.3f account_risk=%.2f",
@@ -352,7 +349,7 @@ class RiskScoringMiddleware(BaseHTTPMiddleware):
         # modest penalty so attacks are surfaced quickly but normal UI
         # navigation doesn't immediately push scores to critical.
         if br >= 0.9:
-            score += 0.25
+            score += 0.15
 
         score = min(round(score, 3), 1.0)
 

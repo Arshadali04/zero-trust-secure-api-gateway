@@ -111,16 +111,16 @@ async def run_attack(
                 "sqli": 0.35,
                 "xss": 0.30,
                 "path_traversal": 0.35,
-                "bruteforce": 0.25,
-                "flood": 0.30,
+                "bruteforce": 0.20,
+                "flood": 0.15,
             }
-            amount = amounts.get(payload.attack_type, 0.25)
+            amount = amounts.get(payload.attack_type, 0.15)
             async with AsyncSessionLocal() as session:
                 await elevate_account_risk(
                     session,
                     _user.id,
                     amount,
-                    bypass_cooldown=True,
+                    bypass_cooldown=(payload.attack_type in ("sqli", "xss", "path_traversal")),
                 )
         except Exception as exc:
             logger.warning("Attack Lab caller risk elevation skipped: %s", exc)

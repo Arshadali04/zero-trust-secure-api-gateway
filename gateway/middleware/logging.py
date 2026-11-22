@@ -229,7 +229,10 @@ async def _track_behavior(user_email: str, ip: str, body_bytes: int = 0) -> None
                 if anomaly.get("threat_type") == "behavior_anomaly":
                     from gateway.detection.account_risk import elevate_account_risk
                     try:
-                        await elevate_account_risk(session, user.id, 0.25, ip=ip, bypass_cooldown=True)
+                        # Request rate spike is volumetric, not an exploit. Respect the 2-second
+                        # cooldown so a burst adds a single measured increment (+0.12) rather than
+                        # spiking the account instantly to 1.0.
+                        await elevate_account_risk(session, user.id, 0.12, ip=ip, bypass_cooldown=False)
                     except Exception:
                         await session.rollback()
     except Exception as exc:
