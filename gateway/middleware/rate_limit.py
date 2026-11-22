@@ -57,7 +57,7 @@ FORGOT_RATE_LIMITED_PATHS = {"/auth/forgot-password"}
 # /auth/mfa/verify-setup is now rate-limited to prevent TOTP enumeration attacks
 MFA_RATE_LIMITED_PATHS = {"/auth/mfa/verify", "/auth/mfa/verify-setup"}
 
-# Endpoints exempt from API sliding-window rate limiting (static UI, probes, WS)
+# Endpoints exempt from API sliding-window rate limiting (static UI, probes, WS, and console telemetry)
 _EXEMPT_PREFIXES = (
     "/docs",
     "/redoc",
@@ -68,6 +68,10 @@ _EXEMPT_PREFIXES = (
     "/metrics",
     "/ws",
     "/attack-lab/state",
+    "/events",
+    "/admin/analytics",
+    "/admin/security-events",
+    "/auth/me",
 )
 
 # ---------------------------------------------------------------------------

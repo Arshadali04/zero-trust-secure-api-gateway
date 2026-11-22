@@ -161,11 +161,11 @@ window.API = {
         throw { status: response.status, data: data, headers: secHeaders };
       }
 
-      // 403 stepup_required — redirect to step-up verification page
+      // 403 stepup_required or stepup_required_no_mfa — redirect to step-up verification page
       if (
         response.status === 403 &&
         data &&
-        data.detail === "stepup_required"
+        (data.detail === "stepup_required" || data.detail === "stepup_required_no_mfa")
       ) {
         sessionStorage.setItem(
           "stepup_return_full",

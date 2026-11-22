@@ -229,7 +229,7 @@ async def _track_behavior(user_email: str, ip: str, body_bytes: int = 0) -> None
                 if anomaly.get("threat_type") == "behavior_anomaly":
                     from gateway.detection.account_risk import elevate_account_risk
                     try:
-                        await elevate_account_risk(session, user.id, 0.15, ip=ip)
+                        await elevate_account_risk(session, user.id, 0.25, ip=ip, bypass_cooldown=True)
                     except Exception:
                         await session.rollback()
     except Exception as exc:

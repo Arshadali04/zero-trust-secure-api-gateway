@@ -444,7 +444,7 @@ function updateLabState(data) {
   const samples = Array.isArray(data.risk_samples) ? data.risk_samples : [];
   const latestRisk = samples.length > 0
     ? ((s) => typeof s === 'object' && s !== null ? (s.score ?? 0) : Number(s))(samples[samples.length - 1])
-    : 0;
+    : (typeof data.user_risk_score === 'number' ? data.user_risk_score : 0);
 
   updateRiskGauge(isNaN(latestRisk) ? 0 : latestRisk);
   updateSparkline(samples);

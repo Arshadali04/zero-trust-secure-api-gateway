@@ -100,6 +100,31 @@ async def run_attack(
                 expires_delta=timedelta(minutes=min(10, max(2, (payload.duration // 60) + 2))),
             )
 
+    # Elevate caller's stored account risk score so that the attack simulation's
+    # security impact reflects across the dashboard risk gauge, telemetry, and sparkline.
+    if _user and getattr(_user, "id", None):
+        try:
+            from gateway.db.database import AsyncSessionLocal
+            from gateway.detection.account_risk import elevate_account_risk
+
+            amounts = {
+                "sqli": 0.35,
+                "xss": 0.30,
+                "path_traversal": 0.35,
+                "bruteforce": 0.25,
+                "flood": 0.30,
+            }
+            amount = amounts.get(payload.attack_type, 0.25)
+            async with AsyncSessionLocal() as session:
+                await elevate_account_risk(
+                    session,
+                    _user.id,
+                    amount,
+                    bypass_cooldown=True,
+                )
+        except Exception as exc:
+            logger.warning("Attack Lab caller risk elevation skipped: %s", exc)
+
     lab.start(payload.attack_type, payload.duration, payload.intensity, jwt)
     return {
         "message": f"Started {ATTACK_LABELS[payload.attack_type]} attack.",
@@ -120,7 +145,10 @@ async def stop_attack(_user=Depends(require_authenticated_user)):
 @router.get("/state")
 async def attack_state(_user=Depends(require_authenticated_user)):
     """Return the current Attack Lab state."""
-    return lab.snapshot()
+    state = lab.snapshot()
+    if _user:
+        state["user_risk_score"] = getattr(_user, "risk_score", 0.0)
+    return state
 
 
 @ws_router.websocket("/ws/attack-lab")

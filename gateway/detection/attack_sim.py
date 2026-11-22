@@ -28,8 +28,14 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+
+def _base_url() -> str:
+    port = os.environ.get("PORT", "8000")
+    return f"http://127.0.0.1:{port}"
+
+
 PORT = os.environ.get("PORT", "8000")
-BASE_URL = f"http://127.0.0.1:{PORT}"
+BASE_URL = _base_url()
 MAX_EVENTS = 80
 MAX_RISK_SAMPLES = 200
 
@@ -212,7 +218,8 @@ class AttackLab:
         # Attach JWT only for authenticated flood attacks, not for external attacks
         if typ == "flood" and self.jwt:
             headers["Authorization"] = f"Bearer {self.jwt}"
-        url = f"{BASE_URL}/api/v1/data/hello"
+        base = _base_url()
+        url = f"{base}/api/v1/data/hello"
         method = "GET"
         json_body = None
         params = None
@@ -231,16 +238,16 @@ class AttackLab:
                 if "header" in payload:
                     headers.update(payload["header"])
             elif typ == "path_traversal":
-                url = f"{BASE_URL}{random.choice(TRAVERSAL_PAYLOADS)}"
+                url = f"{base}{random.choice(TRAVERSAL_PAYLOADS)}"
             elif typ == "bruteforce":
-                url = f"{BASE_URL}/auth/login"
+                url = f"{base}/auth/login"
                 method = "POST"
                 json_body = {
                     "email": "victim@example.com",
                     "password": random.choice(BRUTE_PASSWORDS),
                 }
             elif typ == "flood":
-                url = f"{BASE_URL}{random.choice(FLOOD_PATHS)}"
+                url = f"{base}{random.choice(FLOOD_PATHS)}"
             else:
                 json_body = {"query": "SELECT * FROM users WHERE 1=1; DROP TABLE x;--"}
 
@@ -252,8 +259,9 @@ class AttackLab:
             resp = await client.request(
                 method, url, headers=headers, params=params, json=json_body,
             )
-        except Exception:
+        except Exception as exc:
             self.errors += 1
+            logger.debug("Attack sim request failed on %s: %s", url, exc)
             return
 
         self.total += 1

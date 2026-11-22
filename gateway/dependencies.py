@@ -139,11 +139,18 @@ async def require_authenticated_user(
         # the conservative choice and it makes the audit event truthful.
         if not user.mfa_enabled:
             from gateway.config import settings as _settings
+
+            # Admin read-only monitoring (analytics, feed, events) must stay viewable
+            # so the security console remains functional during elevated threat tiers.
+            is_admin_monitoring = (
+                getattr(user, "role", None) == "admin"
+                and path.startswith(("/admin/analytics", "/admin/security-events", "/events"))
+            )
             sensitive = any(
                 path.startswith(p)
                 for p in getattr(_settings, "SENSITIVE_PATH_PREFIXES", ["/api/v1", "/admin"])
             )
-            if sensitive and not path.startswith(("/auth/mfa", "/auth/me")):
+            if sensitive and not is_admin_monitoring and not path.startswith(("/auth/mfa", "/auth/me")):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="stepup_required_no_mfa",
@@ -151,8 +158,12 @@ async def require_authenticated_user(
                 )
     if user.stepup_required and user.mfa_enabled:
         from gateway.config import settings as _settings
+        is_admin_monitoring = (
+            getattr(user, "role", None) == "admin"
+            and path.startswith(("/admin/analytics", "/admin/security-events", "/events"))
+        )
         sensitive = any(path.startswith(p) for p in getattr(_settings, "SENSITIVE_PATH_PREFIXES", ["/api/v1", "/admin"]))
-        stepup_path_ok = path.startswith(("/auth/mfa", "/auth/me"))
+        stepup_path_ok = is_admin_monitoring or path.startswith(("/auth/mfa", "/auth/me"))
         if sensitive and not stepup_path_ok:
             mfa_at = payload.get("mfa_at", 0) or 0
             since_ts = 0.0

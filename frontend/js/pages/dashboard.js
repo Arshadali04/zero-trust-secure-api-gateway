@@ -669,16 +669,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       const total = 45;
       let okCount = 0;
       let blockedCount = 0;
+      const batchSize = 5;
 
-      for (let i = 1; i <= total; i++) {
-        proxyResult.textContent = `⚡ Firing burst request ${i}/${total} to /api/v1/data/hello...`;
-        try {
-          await API.proxyRequest('data/hello');
-          okCount++;
-        } catch (_) {
-          blockedCount++;
-        }
-        await new Promise(r => setTimeout(r, 20));
+      for (let i = 0; i < total; i += batchSize) {
+        const batch = Math.min(batchSize, total - i);
+        proxyResult.textContent = `⚡ Firing burst requests ${i + 1}-${i + batch}/${total} to /api/v1/data/hello...`;
+        await Promise.all(Array.from({ length: batch }, async () => {
+          try {
+            await API.proxyRequest('data/hello');
+            okCount++;
+          } catch (_) {
+            blockedCount++;
+          }
+        }));
+        await new Promise(r => setTimeout(r, 30));
       }
 
       updateInspectionBar(API.lastSecurityHeaders);
@@ -686,6 +690,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       proxyResult.textContent = `✅ Traffic burst complete!\n- Sent: ${total} requests\n- Processed: ${okCount}\n- Throttled/Blocked: ${blockedCount}\n\nBehavioral velocity engine evaluated traffic spike. Syncing Account Risk Score...`;
 
       await refreshUserData();
+      try {
+        const freshUser = await API.getMe();
+        if (freshUser) {
+          applyUserData(freshUser);
+          const pct = Math.round((freshUser.risk_score || 0) * 100);
+          proxyResult.textContent += `\nAccount Risk Score updated: ${pct}% (${freshUser.role === 'admin' ? 'Admin session unfrozen' : (freshUser.stepup_required ? 'Step-up required' : 'Monitored')})`;
+        }
+      } catch (_) {}
+
       if (isAdmin) {
         await Promise.all([loadAnalyticsSummary(true), pollThreatFeed()]);
       }

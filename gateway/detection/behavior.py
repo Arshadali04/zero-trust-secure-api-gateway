@@ -141,10 +141,10 @@ async def update_behavior_profile(
     # (4 rps → 40 requests in 10 s) climbs past it within the demo window.
     baseline = max(1.0, min(baseline, 10.0))
 
-    # Threshold: at least 40 requests/min and actively sending requests
+    # Threshold: at least 30 requests/min and actively sending requests
     # in the recent 10s window (>= 5 req in 10s, i.e. >= 30 req/min active rate)
     # to ensure quiet clicks after a burst don't falsely re-trigger anomalies.
-    threshold = max(40, baseline * 3.0)
+    threshold = max(30, baseline * 2.5)
     if rpm > threshold and recent_10s >= 5:
         anomaly = {
             "threat_type": "behavior_anomaly",
