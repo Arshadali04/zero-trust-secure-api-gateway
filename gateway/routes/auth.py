@@ -288,8 +288,11 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
     db.add(reset_entry)
     await db.commit()
 
-    base_url = getattr(settings, "FRONTEND_BASE_URL", "http://127.0.0.1:8000")
-    reset_link = f"{base_url}/frontend/reset-password.html#token={token}"
+    base_url = getattr(settings, "FRONTEND_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    if base_url.endswith("/frontend"):
+        reset_link = f"{base_url}/reset-password.html#token={token}"
+    else:
+        reset_link = f"{base_url}/frontend/reset-password.html#token={token}"
     logger.info("=======================================================")
     logger.info(f"PASSWORD RESET LINK FOR {payload.email}:")
     logger.info(reset_link)
