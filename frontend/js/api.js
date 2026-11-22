@@ -41,7 +41,10 @@ window.API = {
     var configured = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL;
     if (configured) return configured.replace(/\\/+$/, "");
 
-    if (window.location.port && window.location.port !== "8000") {
+    var isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    if (isLocalhost && window.location.port && window.location.port !== "8000") {
       return (
         window.location.protocol +
         "//" +

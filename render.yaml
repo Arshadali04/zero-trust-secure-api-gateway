@@ -33,10 +33,10 @@ services:
       - key: TRUSTED_PROXIES
         value: "[]"
       - key: ALLOWED_ORIGINS
-        value: '["https://YOUR-VERCEL-PROJECT.vercel.app"]'
+        value: '["https://zero-trust-secure-api-gateway.onrender.com"]'
       - key: FRONTEND_BASE_URL
-        value: https://YOUR-VERCEL-PROJECT.vercel.app
+        value: https://zero-trust-secure-api-gateway.onrender.com/frontend
       - key: GOOGLE_REDIRECT_URI
-        value: https://YOUR-RENDER-SERVICE.onrender.com/auth/callback/google
+        value: https://zero-trust-secure-api-gateway.onrender.com/auth/callback/google
       - key: GITHUB_REDIRECT_URI
-        value: https://YOUR-RENDER-SERVICE.onrender.com/auth/callback/github
+        value: https://zero-trust-secure-api-gateway.onrender.com/auth/callback/github

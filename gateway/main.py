@@ -160,10 +160,18 @@ app.add_middleware(
     # needs. Audit note: the Phase 3 list proposed deleting the dead setting;
     # wiring it up resolves the same finding without losing the knob.
     allow_origins=settings.ALLOWED_ORIGINS,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.onrender\.com|.*\.trycloudflare\.com|.*\.vercel\.app)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
+    allow_headers=["*"],
+    expose_headers=[
+        "X-Risk-Score",
+        "X-Risk-Action",
+        "X-WAF-Blocked",
+        "X-WAF-Risk-Score",
+        "X-RateLimit-Remaining",
+        "X-Request-ID",
+    ],
 )
 
 # 3. WAF — blocks SQL injection, XSS, path traversal, command injection
