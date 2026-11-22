@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: zero-trust-secure-api-gateway
+    runtime: python
+    plan: starter
+    region: singapore
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn gateway.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: gateway-sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:////var/data/gateway.db
+      - key: GATEWAY_DEMO
+        value: "1"
+      - key: ALLOW_UPSTREAM_PRIVATE
+        value: "false"
+      - key: OAUTH_ALLOW_AUTOLINK
+        value: "false"
+      - key: TRUSTED_PROXIES
+        value: "[]"
+      - key: ALLOWED_ORIGINS
+        value: '["https://YOUR-VERCEL-PROJECT.vercel.app"]'
+      - key: FRONTEND_BASE_URL
+        value: https://YOUR-VERCEL-PROJECT.vercel.app
+      - key: GOOGLE_REDIRECT_URI
+        value: https://YOUR-RENDER-SERVICE.onrender.com/auth/callback/google
+      - key: GITHUB_REDIRECT_URI
+        value: https://YOUR-RENDER-SERVICE.onrender.com/auth/callback/github
