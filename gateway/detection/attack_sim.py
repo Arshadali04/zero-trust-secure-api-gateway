@@ -18,6 +18,7 @@ Attack types:
 
 import asyncio
 import logging
+import os
 import random
 import time
 from collections import deque
@@ -27,7 +28,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "http://127.0.0.1:8000"
+PORT = os.environ.get("PORT", "8000")
+BASE_URL = f"http://127.0.0.1:{PORT}"
 MAX_EVENTS = 80
 MAX_RISK_SAMPLES = 200
 
