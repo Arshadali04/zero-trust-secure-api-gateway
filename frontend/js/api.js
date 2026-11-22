@@ -64,8 +64,13 @@ window.API = {
    *   API.request('GET', '/path')         — explicit method
    *   API.request('/path')                — shorthand GET (single string arg)
    */
-  async request(methodOrUrl, endpoint, body, _isRetry) {
+  async request(methodOrUrl, endpoint, body, _isRetry, options) {
     var method, actualEndpoint;
+    var opts = options || {};
+    if (typeof _isRetry === 'object' && _isRetry !== null) {
+      opts = _isRetry;
+      _isRetry = false;
+    }
     if (endpoint === undefined || typeof endpoint !== 'string') {
       // Single-argument shorthand: request('/path') → GET /path
       method = 'GET';
@@ -167,12 +172,14 @@ window.API = {
         data &&
         (data.detail === "stepup_required" || data.detail === "stepup_required_no_mfa")
       ) {
-        sessionStorage.setItem(
-          "stepup_return_full",
-          window.location.pathname + window.location.search
-        );
-        window.location.replace("stepup.html");
-        return;
+        if (!opts.skipStepupRedirect) {
+          sessionStorage.setItem(
+            "stepup_return_full",
+            window.location.pathname + window.location.search
+          );
+          window.location.replace("stepup.html");
+          return;
+        }
       }
 
       throw { status: response.status, data: data, headers: secHeaders };
@@ -325,7 +332,14 @@ window.API = {
 
   // ── Proxy demo ────────────────────────────────────────────────────────────
 
-  proxyRequest: (path) => API.request("GET", "/api/v1/" + path),
+  proxyRequest: (path, options = {}) =>
+    API.request(
+      "GET",
+      "/api/v1/" + String(path || "").replace(/^\/+/, ""),
+      options.body || null,
+      false,
+      { skipStepupRedirect: true, ...options }
+    ),
 
   // ── Attack Lab ────────────────────────────────────────────────────────────
 

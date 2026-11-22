@@ -61,6 +61,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyBtn = document.getElementById('verifyBtn');
   const signoutLink = document.getElementById('signoutLink');
 
+  // Check if current user has MFA enabled; if not, direct them to profile setup
+  window.API.getMe().then(user => {
+    if (user && !user.mfa_enabled) {
+      showAlert('Two-factor authentication is not yet enabled for this account. Set up 2FA in Profile to satisfy step-up verification.', 'error');
+      const formGroup = document.querySelector('.form-group');
+      if (formGroup) formGroup.style.display = 'none';
+      if (verifyBtn) {
+        verifyBtn.textContent = 'Configure 2FA in Profile';
+        verifyBtn.onclick = (e) => {
+          e.preventDefault();
+          window.location.replace('profile.html');
+        };
+      }
+      const desc = document.querySelector('.stepup-desc');
+      if (desc) {
+        desc.textContent = 'Your account risk level requires elevated verification, but two-factor authentication has not been enabled yet. Please configure 2FA to continue.';
+      }
+    }
+  }).catch(() => {});
+
   // Guard against concurrent verification attempts
   let _verifying = false;
 

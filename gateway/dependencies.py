@@ -140,17 +140,17 @@ async def require_authenticated_user(
         if not user.mfa_enabled:
             from gateway.config import settings as _settings
 
-            # Admin read-only monitoring (analytics, feed, events) must stay viewable
+            # Admin read-only monitoring and management must stay accessible
             # so the security console remains functional during elevated threat tiers.
-            is_admin_monitoring = (
+            is_admin_action = (
                 getattr(user, "role", None) == "admin"
-                and path.startswith(("/admin/analytics", "/admin/security-events", "/events"))
+                and path.startswith(("/admin", "/events"))
             )
             sensitive = any(
                 path.startswith(p)
                 for p in getattr(_settings, "SENSITIVE_PATH_PREFIXES", ["/api/v1", "/admin"])
             )
-            if sensitive and not is_admin_monitoring and not path.startswith(("/auth/mfa", "/auth/me")):
+            if sensitive and not is_admin_action and not path.startswith(("/auth/mfa", "/auth/me")):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="stepup_required_no_mfa",
