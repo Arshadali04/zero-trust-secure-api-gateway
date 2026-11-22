@@ -302,13 +302,22 @@ async def proxy(
 
     _ip = ipaddress.ip_address(_resolved[0][4][0])
 
-    if not getattr(_cfg, "ALLOW_UPSTREAM_PRIVATE", False):
+    _demo_enabled = os.getenv("GATEWAY_DEMO", "1").lower() not in ("0", "false", "no")
+    _demo_mock_allowed = (
+        _demo_enabled
+        and service == "data"
+        and _host in {"127.0.0.1", "localhost"}
+        and (_parsed.port or 80) == 8001
+        and _ip.is_loopback
+    )
+
+    if not getattr(_cfg, "ALLOW_UPSTREAM_PRIVATE", False) and not _demo_mock_allowed:
         if _ip.is_private or _ip.is_loopback or _ip.is_link_local or _ip.is_reserved:
             raise HTTPException(
                 status_code=403,
                 detail=f"SSRF blocked: upstream resolves to private/reserved address {_ip}",
             )
-    else:
+    elif getattr(_cfg, "ALLOW_UPSTREAM_PRIVATE", False):
         if _ip.is_link_local or _ip.is_reserved:
             raise HTTPException(
                 status_code=403,
