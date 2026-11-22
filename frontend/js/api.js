@@ -39,7 +39,7 @@ window._extractError = function _extractError(error, fallback) {
 window.API = {
   _base: (function () {
     var configured = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL;
-    if (configured) return configured.replace(/\\/+$/, "");
+    if (configured) return configured.replace(/\/+$/, "");
 
     var isLocalhost =
       window.location.hostname === "localhost" ||
