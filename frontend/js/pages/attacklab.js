@@ -570,12 +570,8 @@ function connectWS() {
     reconnectTimer = null;
   }
 
-  let wsHost = window.location.host;
-  if (window.location.port && window.location.port !== '8000') {
-    wsHost = window.location.hostname + ':8000';
-  }
-  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsBase = `${proto}//${wsHost}`;
+  const wsUrl = new URL('/ws/attack-lab', API._base);
+  wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
 
   // The /ws/attack-lab endpoint is authenticated. Browsers cannot set an
   // Authorization header on a WebSocket handshake, so the access token is
@@ -587,7 +583,8 @@ function connectWS() {
   }
 
   try {
-    ws = new WebSocket(wsBase + '/ws/attack-lab?token=' + encodeURIComponent(token));
+    wsUrl.searchParams.set('token', token);
+    ws = new WebSocket(wsUrl.toString());
   } catch (e) {
     setWsStatus('error');
     reconnectTimer = setTimeout(connectWS, 3000);

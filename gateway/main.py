@@ -143,7 +143,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SECRET_KEY,
     same_site="lax",
-    https_only=False,
+    https_only=settings.ENVIRONMENT != "development",
     session_cookie="zt_gateway_session",
 )
 
