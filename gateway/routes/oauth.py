@@ -188,7 +188,7 @@ async def upsert_oauth_user(
 @router.get("/callback/google")
 async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
     """Google OAuth callback"""
-    frontend_base = settings.FRONTEND_BASE_URL.rstrip("/") + "/frontend/login.html?r=1"
+    frontend_base = settings.FRONTEND_BASE_URL.rstrip("/") + "/login.html?r=1"
 
     try:
         token = await oauth.google.authorize_access_token(request)
@@ -271,7 +271,7 @@ async def callback_google(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/callback/github")
 async def callback_github(request: Request, db: AsyncSession = Depends(get_db)):
     """GitHub OAuth callback"""
-    frontend_base = settings.FRONTEND_BASE_URL.rstrip("/") + "/frontend/login.html?r=1"
+    frontend_base = settings.FRONTEND_BASE_URL.rstrip("/") + "/login.html?r=1"
 
     try:
         token = await oauth.github.authorize_access_token(request)
