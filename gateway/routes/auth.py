@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gateway.config import settings
@@ -266,14 +266,11 @@ async def login(payload: LoginRequest, response: Response, request: Request, db:
 
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email))
+    result = await db.execute(select(User).where(func.lower(User.email) == payload.email.lower()))
     user = result.scalar_one_or_none()
 
     # We always return success to prevent email enumeration
     if not user:
-        return {"message": "If that email is in our database, a reset link has been generated."}
-
-    if user.hashed_password is None:
         return {"message": "If that email is in our database, a reset link has been generated."}
 
     # Generate token and save it
@@ -335,7 +332,7 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
 
     # Find user and update password
-    user_result = await db.execute(select(User).where(User.email == reset_entry.email))
+    user_result = await db.execute(select(User).where(func.lower(User.email) == reset_entry.email.lower()))
     user = user_result.scalar_one_or_none()
 
     if not user:

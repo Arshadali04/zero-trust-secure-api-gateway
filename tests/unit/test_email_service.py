@@ -26,7 +26,10 @@ from gateway.core.email import (
 
 
 @pytest.fixture(autouse=True)
-def _clean_outbox():
+def _clean_outbox(monkeypatch):
+    from gateway.config import settings
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", False)
+    monkeypatch.setattr(settings, "SMTP_USER", "")
     clear_outbox()
     yield
     clear_outbox()
