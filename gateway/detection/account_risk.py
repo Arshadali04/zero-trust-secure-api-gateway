@@ -27,6 +27,7 @@ real figure is roughly 4x lower. Anyone sizing a "how long does a flagged
 account stay flagged" window off that number was overestimating badly.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -284,6 +285,19 @@ async def apply_risk_policy(db, user: User, new_risk: float, ip: str = "") -> di
                 f"risk={new_risk:.2f} account-wide freeze {freeze_secs}s, sessions revoked",
                 new_risk,
             )
+
+            # Dispatch security alert email to user
+            try:
+                from gateway.core.email import send_account_frozen_email
+                asyncio.create_task(
+                    send_account_frozen_email(
+                        to_email=user.email,
+                        reason=f"Adaptive risk score reached {new_risk:.2f} (exceeds critical threshold {crit_thr:.2f})",
+                        until=freeze_until,
+                    )
+                )
+            except Exception as exc:
+                logger.warning("Could not dispatch account freeze alert email: %s", exc)
 
     # ── Step-up at elevated risk (not already frozen) ─────────────────────────
     elif new_risk >= stepup_thr:

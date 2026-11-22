@@ -7,6 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Import map for Three.js bare module resolution -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js"
+    }
+  }
+  </script>
   <!-- Inline auth guard — redirect before any render if no valid token -->
   <script>
     (function(){
@@ -432,6 +440,11 @@
       gap: 4px;
     }
 
+    @keyframes eventSlideIn {
+      from { opacity: 0; transform: translateX(18px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
     .event-item {
       padding: 8px 12px;
       border-radius: 6px;
@@ -442,6 +455,12 @@
       align-items: center;
       gap: 8px;
       min-width: 0;
+      animation: eventSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transition: background 0.2s;
+    }
+
+    .event-item:hover {
+      background: rgba(255, 255, 255, 0.06);
     }
 
     .event-item.blocked { border-left-color: var(--alert);   background: rgba(255,93,93,0.05); }
@@ -482,8 +501,10 @@
     .sparkline-canvas {
       display: block;
       width: 100%;
-      height: 80px;
+      height: 96px;
       border-radius: 6px;
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid var(--glass-border);
     }
 
     /* ─── Misc utilities ─────────────────────────────────────────────────────── */
@@ -789,9 +810,12 @@
       </div><!-- /.lab-grid -->
 
       <!-- ── Event log (full width) ──────────────────────────────────────────── -->
-      <section class="panel" aria-label="Live event log">
+      <section class="panel" aria-label="Live threat timeline">
         <div class="panel-header">
-          <h2 style="font-size:0.9rem; font-weight:700;">Live Events</h2>
+          <div class="flex-row">
+            <h2 style="font-size:0.9rem; font-weight:700;">Live Threat Timeline</h2>
+            <span class="badge badge-info" style="font-size:0.65rem; padding:2px 6px;">Live Stream</span>
+          </div>
           <span id="wsStatus" class="badge badge-dim" aria-live="polite">Disconnected</span>
         </div>
         <div class="event-log" id="eventLog" role="log" aria-live="polite" aria-relevant="additions">

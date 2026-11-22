@@ -7,6 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Import map for Three.js bare module resolution -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js"
+    }
+  }
+  </script>
 
   <!-- Auth guard: redirect to login if no valid token -->
   <script>
@@ -494,9 +502,9 @@
 <!-- Notification toast -->
 <div id="notification" class="notification" role="status" aria-live="polite"></div>
 
-<script src="js/api.js?v=20"></script>
-<script src="js/ui.js?v=20"></script>
-<script src="js/auth.js?v=20"></script>
-<script type="module" src="js/pages/admin.js?v=20260815b"></script>
+<script src="js/api.js?v=21"></script>
+<script src="js/ui.js?v=21"></script>
+<script src="js/auth.js?v=21"></script>
+<script type="module" src="js/pages/admin.js?v=20260815c"></script>
 </body>
 </html>

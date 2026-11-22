@@ -29,6 +29,8 @@ from gateway.routes import oauth as oauth_routes
 from gateway.routes import proxy as proxy_routes
 from gateway.routes import services as services_routes
 from gateway.routes import user
+from gateway.routes import analytics as analytics_routes
+from gateway.routes import events as events_routes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -237,6 +239,8 @@ app.include_router(apikeys_routes.router)
 app.include_router(services_routes.router)
 app.include_router(attack_lab_routes.router)
 app.include_router(attack_lab_routes.ws_router)
+app.include_router(analytics_routes.router)
+app.include_router(events_routes.router)
 
 # Serve frontend static files at /frontend/*
 # Must be mounted AFTER routers so API routes take priority.

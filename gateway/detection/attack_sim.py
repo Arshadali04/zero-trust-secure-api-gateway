@@ -207,7 +207,8 @@ class AttackLab:
         # the sliding-window rate counter accumulates and behavior risk climbs.
         ip = _IP_POOL[0] if typ == "flood" else self._next_ip()
         headers = {"X-Forwarded-For": ip}
-        if self.jwt:
+        # Attach JWT only for authenticated flood attacks, not for external attacks
+        if typ == "flood" and self.jwt:
             headers["Authorization"] = f"Bearer {self.jwt}"
         url = f"{BASE_URL}/api/v1/data/hello"
         method = "GET"

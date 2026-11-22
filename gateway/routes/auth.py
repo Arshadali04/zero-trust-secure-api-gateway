@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -290,13 +291,18 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
     db.add(reset_entry)
     await db.commit()
 
-    # In a real app we would send an email here.
-    # For now, we will just log it so the user can click. In production, use your domain name. For local demo, we point to the FastAPI served frontend.
-    reset_link = f"http://127.0.0.1:8000/frontend/reset-password.html#token={token}"
+    base_url = getattr(settings, "FRONTEND_BASE_URL", "http://127.0.0.1:8000")
+    reset_link = f"{base_url}/frontend/reset-password.html#token={token}"
     logger.info("=======================================================")
     logger.info(f"PASSWORD RESET LINK FOR {payload.email}:")
     logger.info(reset_link)
     logger.info("=======================================================")
+
+    try:
+        from gateway.core.email import send_password_reset_email
+        asyncio.create_task(send_password_reset_email(payload.email, reset_link))
+    except Exception as exc:
+        logger.warning("Could not dispatch password reset email: %s", exc)
 
     return {"message": "If that email is in our database, a reset link has been generated."}
 
@@ -337,6 +343,12 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
     # Clean up token
     await db.delete(reset_entry)
     await db.commit()
+
+    try:
+        from gateway.core.email import send_password_changed_email
+        asyncio.create_task(send_password_changed_email(reset_entry.email))
+    except Exception as exc:
+        logger.warning("Could not dispatch password changed notification: %s", exc)
 
     return {"message": "Password successfully reset. You can now log in."}
 

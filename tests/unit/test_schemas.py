@@ -99,3 +99,20 @@ def test_schema_datetime_serializers():
     assert k_dump["created_at"] == now_aware.isoformat()
     assert k_dump["expires_at"] is None
     assert k_dump["revoked_at"] == now_aware.isoformat()
+
+
+def test_user_response_accepts_simulation_and_internal_domains():
+    """Verify that UserResponse does not fail on .local or internal email domains."""
+    user = UserResponse(
+        id=99,
+        email="sim_attacker@gateway.local",
+        username="sim_attacker",
+        role="user",
+        is_active=True,
+    )
+    dump = user.model_dump()
+    assert dump["email"] == "sim_attacker@gateway.local"
+    assert dump["username"] == "sim_attacker"
+    assert dump["is_active"] is True
+    assert dump["role"] == "user"
+

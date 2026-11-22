@@ -349,8 +349,10 @@ async function loadUsers(isInitial = false) {
       renderUsersTable(displayUsers, isInitial);
     }
   } catch (err) {
+    console.error('[Admin] Failed to load users:', err);
     if (isInitial && tbody) {
-      tbody.innerHTML = errorRow(6, 'Failed to load users. Check admin permissions.');
+      const errMsg = (window._extractError && _extractError(err, 'Failed to load users.')) || 'Failed to load users.';
+      tbody.innerHTML = errorRow(6, errMsg);
     }
   }
 }

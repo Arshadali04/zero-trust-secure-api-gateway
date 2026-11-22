@@ -34,11 +34,13 @@ logger = logging.getLogger(__name__)
 
 # scikit-learn is optional — fall back to rule-based detection if missing
 try:
-    import joblib
-    from sklearn.ensemble import IsolationForest
+    import joblib  # type: ignore[import-untyped,import-not-found]
+    from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped,import-not-found]
     SKLEARN_AVAILABLE = True
 except Exception:  # pragma: no cover
     SKLEARN_AVAILABLE = False
+    joblib = None  # type: ignore
+    IsolationForest = None  # type: ignore
     logger.warning("scikit-learn unavailable — ML anomaly detection disabled.")
 
 # ── Model persistence ─────────────────────────────────────────────────────────

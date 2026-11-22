@@ -60,6 +60,17 @@ class Settings(BaseSettings):
 
     FRONTEND_BASE_URL: str = "http://127.0.0.1:8000"
 
+    # ── Email / SMTP Configuration ──────────────────────────────────────────
+    EMAIL_ENABLED: bool = False
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "Zero Trust Gateway <security@gateway.local>"
+    SMTP_TLS: bool = True
+    SMTP_SSL: bool = False
+    SMTP_TIMEOUT: int = 10
+
     # Only these peers may set X-Forwarded-For. The local loopback is trusted
     # so the Attack Lab (which spoofs attacker IPs from localhost) keeps
     # working; a real deployment should list only its reverse proxies.

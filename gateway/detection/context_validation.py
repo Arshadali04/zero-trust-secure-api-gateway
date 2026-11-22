@@ -117,7 +117,7 @@ def _get_geoip_reader():
             )
             return None
         try:
-            import geoip2.database
+            import geoip2.database  # type: ignore[import-untyped,import-not-found]
             _geoip_reader = geoip2.database.Reader(_GEOIP_DB_PATH)
             _geoip_state = "ready"
             logger.info("GeoIP database loaded from %s", _GEOIP_DB_PATH)

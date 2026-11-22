@@ -65,11 +65,42 @@ _CMD_INJECTION_PATTERNS = [
     r"\|\s*\w+|\bping\s+-[nc]\b|\bnslookup\b|\bdig\b|;\s*rm\s+-[rf])",
 ]
 
+# SSRF — Server-Side Request Forgery: private/loopback addresses and dangerous protocols
+# Detects attempts to access internal infrastructure via proxy / URL parameters.
+_SSRF_PATTERNS = [
+    r"(?i)(file://|dict://|gopher://|tftp://|ldap://|ftp://|phar://|data://|php://|"
+    r"localhost|127\.0\.0\.1|0\.0\.0\.0|::1|\[::1\]|"
+    r"169\.254\.|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|"
+    r"172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|"
+    r"metadata\.google\.internal|169\.254\.169\.254)",
+]
+
+# XXE — XML External Entity injection
+# Detects DOCTYPE/ENTITY declarations used to exfiltrate files or SSRF.
+_XXE_PATTERNS = [
+    r"(?i)(<!ENTITY\s|SYSTEM\s+[\"']|PUBLIC\s+[\"']|<!DOCTYPE[^>]*\[|\]\s*>|%[a-z]+;)",
+]
+
+# LDAP Injection — filter manipulation in LDAP queries
+_LDAP_PATTERNS = [
+    r"(?i)(\*\)\(|\(\||\(&|\)\(|\\28|\\29|"
+    r"\(objectClass=\*\)|cn=[^,]+,|uid=[^,]+,|ou=[^,]+,|dc=[^,]+,)",
+]
+
+# Prototype Pollution — JavaScript object prototype overwrite
+_PROTO_POLLUTION_PATTERNS = [
+    r"(__proto__|constructor\s*\[\s*[\"']?prototype[\"']?\s*\]|prototype\s*\.\s*\w+\s*=)",
+]
+
 _ALL_PATTERNS: list[tuple[str, list[str]]] = [
     ("sql_injection",       _SQLI_PATTERNS),
     ("xss",                 _XSS_PATTERNS),
     ("path_traversal",      _PATH_TRAVERSAL_PATTERNS),
     ("command_injection",   _CMD_INJECTION_PATTERNS),
+    ("ssrf",                _SSRF_PATTERNS),
+    ("xxe",                 _XXE_PATTERNS),
+    ("ldap_injection",      _LDAP_PATTERNS),
+    ("prototype_pollution", _PROTO_POLLUTION_PATTERNS),
 ]
 
 # Pre-compile for performance
@@ -84,6 +115,27 @@ RISK_SCORES = {
     "xss": 0.8,
     "path_traversal": 0.85,
     "command_injection": 0.95,
+    "ssrf": 0.88,
+    "xxe": 0.90,
+    "ldap_injection": 0.82,
+    "prototype_pollution": 0.75,
+}
+
+# Human-readable labels for each threat type (used in frontend displays)
+THREAT_LABELS = {
+    "sql_injection": "SQL Injection",
+    "xss": "Cross-Site Scripting",
+    "path_traversal": "Path Traversal",
+    "command_injection": "Command Injection",
+    "ssrf": "Server-Side Request Forgery",
+    "xxe": "XML External Entity",
+    "ldap_injection": "LDAP Injection",
+    "prototype_pollution": "Prototype Pollution",
+    "failed_login": "Brute-Force Login",
+    "ml_anomaly": "ML Anomaly",
+    "high_risk_request": "High Risk Request",
+    "impossible_travel": "Impossible Travel",
+    "rapid_ip_change": "Rapid IP Change",
 }
 
 # ---------------------------------------------------------------------------
@@ -100,10 +152,39 @@ def _is_exempt(path: str) -> bool:
     return any(path.startswith(p) for p in _EXEMPT_PREFIXES)
 
 
+# Patterns that are ONLY scanned in request bodies and query parameters,
+# NOT in the URL path or browser navigation headers. SSRF patterns match
+# private IPs/protocols that would produce false positives when the WAF scans
+# the request URL scheme/host or browser CORS headers (Origin / Referer),
+# which legitimately contain the server's own address (e.g. http://127.0.0.1:8000).
+_BODY_ONLY_THREATS = {"ssrf", "xxe", "prototype_pollution"}
+
+
 def _detect_threat(text: str) -> str | None:
-    """Return the threat type name if any pattern matches, else None."""
+    """Return the threat type name if any pattern matches, else None.
+
+    Scans ALL compiled patterns including body-only ones. Use this for
+    request bodies and query parameter values.
+    """
     for name, pattern in _COMPILED:
         if pattern.search(text):
+            return name
+    return None
+
+
+def _detect_url_threat(path_and_query: str) -> str | None:
+    """Scan only the URL path + query string (excluding scheme and host).
+
+    SSRF/XXE/prototype-pollution patterns are excluded here because:
+    - SSRF patterns match private IPs/protocols that appear in the server's
+      own hostname (http://127.0.0.1:8000/...) causing false positives.
+    - XXE patterns may appear in URL-encoded params legitimately.
+    - These attack classes are better detected in the request body.
+    """
+    for name, pattern in _COMPILED:
+        if name in _BODY_ONLY_THREATS:
+            continue
+        if pattern.search(path_and_query):
             return name
     return None
 
@@ -164,17 +245,32 @@ class WAFMiddleware(BaseHTTPMiddleware):
         threat = None
 
         # ── 1. Check URL path + query string ─────────────────────────────────
-        # URL-decode so patterns like `union\s+select` match even when the
-        # attacker sends `union%20select` (percent-encoded).
-        full_url = unquote_plus(str(request.url))
-        threat = _detect_threat(full_url)
+        # Scan only the path + query string (NOT the full URL including scheme
+        # and host). The full URL always contains the server's own address
+        # (e.g. http://127.0.0.1:8000/...) which would false-positive on SSRF
+        # patterns. Path-only threats are detected via _detect_url_threat, while
+        # explicit query parameters (e.g. ?url=http://127.0.0.1...) are also
+        # scanned for SSRF/XXE attacks.
+        path_and_query = unquote_plus(path)
+        qs = str(request.url.query)
+        if qs:
+            path_and_query = path_and_query + "?" + unquote_plus(qs)
+        threat = _detect_url_threat(path_and_query)
+
+        # Scan query string for full threats (including SSRF, XXE parameters)
+        if not threat and qs:
+            threat = _detect_threat(unquote_plus(qs))
 
         # ── 2. Check HTTP headers for attack patterns ────────────────────────
+        # Headers like User-Agent, Referer, Cookie, X-Forwarded-For are scanned
+        # for injection patterns (SQLi, XSS, Path Traversal, Command Injection).
+        # We do NOT scan Origin or Referer for SSRF, as local navigation
+        # legitimately references localhost/127.0.0.1.
         if not threat:
             for header_name in _HEADERS_ALWAYS_SCANNED:
                 header_value = request.headers.get(header_name, "")
                 if header_value:
-                    threat = _detect_threat(header_value)
+                    threat = _detect_url_threat(header_value)
                     if threat:
                         break
 
@@ -202,10 +298,11 @@ class WAFMiddleware(BaseHTTPMiddleware):
                     type(exc).__name__, exc,
                 )
 
-        # ── Threat found → block, log, return 400 ────────────────────────────
+        # ── Threat found → block, log, return 403 ────────────────────────────
         if threat:
             score = RISK_SCORES.get(threat, 0.75)
-            payload_sample = (full_url + " " + body_text)[:500]
+            # Build payload sample from decoded path/query + body excerpt
+            payload_sample = (path_and_query + " " + body_text)[:500]
 
             logger.warning(
                 "WAF BLOCKED | threat=%s ip=%s path=%s score=%.2f",

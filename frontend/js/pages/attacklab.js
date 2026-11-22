@@ -169,6 +169,7 @@ function addEventItem(ev) {
 
   const typeLabel = esc((ev.threat_type || 'event').replace(/_/g, ' '));
   const detail    = esc(String(ev.detail || '').slice(0, 80));
+  const scoreVal  = typeof ev.risk_score === 'number' ? ev.risk_score.toFixed(2) : '';
 
   const item = document.createElement('div');
   item.className = `event-item ${cls}`;
@@ -176,10 +177,13 @@ function addEventItem(ev) {
     `<span class="event-time">${esc(timeStr)}</span>` +
     `<span class="event-type">${typeLabel}</span>` +
     `<span class="event-detail">${detail}</span>` +
+    (scoreVal ? `<span class="text-mono" style="font-size:0.7rem;color:var(--dim);margin-right:8px;">${scoreVal}</span>` : '') +
     `<span class="badge ${badgeCls}" style="margin-left:auto;flex-shrink:0;">${label}</span>`;
 
   log.insertBefore(item, log.firstChild);
-  slideIn(item); // Motion: slide in from right with spring physics
+  try {
+    slideIn(item); // Motion: slide in from right with spring physics
+  } catch (_) {}
 
   // Trim overflow
   while (log.children.length > MAX_LOG_ITEMS) {
@@ -198,68 +202,123 @@ function updateSparkline(samples) {
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');
-  const w = Math.max(canvas.clientWidth || canvas.offsetWidth || 300, 60);
-  const h = 80;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(rect.width || canvas.clientWidth || 300, 100);
+  const h = 96;
 
-  canvas.width  = w;
-  canvas.height = h;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+
+  ctx.save();
+  if (ctx.resetTransform) ctx.resetTransform();
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  if (!samples || samples.length < 2) return;
+  const padTop    = 14;
+  const padBottom = 16;
+  const padLeft   = 10;
+  const padRight  = 64;
+  const plotW     = Math.max(10, w - padLeft - padRight);
+  const plotH     = Math.max(10, h - padTop - padBottom);
+
+  // Helper to map 0.0 - 1.0 to pixel Y
+  const toY = (val) => padTop + (1.0 - Math.max(0, Math.min(1.0, val))) * plotH;
+
+  // Threshold guide lines
+  const thresholds = [
+    { val: 0.85, label: 'CRIT 0.85', color: 'rgba(255, 93, 93, 0.40)', textColor: '#ff7b7b' },
+    { val: 0.55, label: 'STEP 0.55', color: 'rgba(255, 182, 54, 0.35)', textColor: '#ffc059' },
+    { val: 0.30, label: 'NORM 0.30', color: 'rgba(91, 140, 255, 0.30)', textColor: '#7da4ff' },
+  ];
+
+  ctx.lineWidth = 1;
+  ctx.font = "9px 'JetBrains Mono', monospace";
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  thresholds.forEach(th => {
+    const ty = Math.round(toY(th.val)) + 0.5;
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = th.color;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, ty);
+    ctx.lineTo(padLeft + plotW, ty);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.fillStyle = th.textColor;
+    ctx.fillText(th.label, padLeft + plotW + 6, ty);
+  });
 
   // Normalise samples to plain numbers
-  const scores = samples.map(s =>
+  const rawScores = (Array.isArray(samples) ? samples : []).map(s =>
     (s !== null && typeof s === 'object') ? (s.score ?? 0) : Number(s)
   ).filter(n => !isNaN(n));
 
-  if (scores.length < 2) return;
+  if (rawScores.length === 0) {
+    ctx.fillStyle = 'rgba(240, 244, 255, 0.35)';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Awaiting attack simulation traffic…', padLeft + plotW / 2, padTop + plotH / 2);
+    ctx.restore();
+    return;
+  }
 
-  // Fixed risk domain [0.0, 1.0] so vertical position reflects actual risk
-  // (low near bottom, high/critical near top), preventing flatline distortion
-  const minV  = 0.0;
-  const maxV  = Math.max(1.0, ...scores);
-  const range = maxV - minV;
-  const pad   = 8;
-  const n     = scores.length;
+  // Duplicate single score so curve renders immediately on request #1
+  const scores = rawScores.length === 1 ? [rawScores[0], rawScores[0]] : rawScores;
+  const n = scores.length;
 
-  const xs = scores.map((_, i) => pad + (i / Math.max(1, n - 1)) * (w - pad * 2));
-  const ys = scores.map(s => {
-    const clamped = Math.max(0, Math.min(1.0, s));
-    return h - pad - (clamped / range) * (h - pad * 2);
-  });
+  const xs = scores.map((_, i) => padLeft + (i / Math.max(1, n - 1)) * plotW);
+  const ys = scores.map(s => toY(s));
 
-  const latestScore = scores[scores.length - 1];
-  const isHigh = latestScore > 0.65;
-  const isMed  = latestScore > 0.35;
+  const latestScore = rawScores[rawScores.length - 1];
+  const isHigh = latestScore >= 0.70;
+  const isMed  = latestScore >= 0.35;
   const strokeColor = isHigh ? '#ff5d5d' : (isMed ? '#ffb636' : '#5b8cff');
-  const glowColor   = isHigh ? 'rgba(255,93,93,0.35)' : (isMed ? 'rgba(255,182,54,0.35)' : 'rgba(91,140,255,0.28)');
-  const gradTop     = isHigh ? 'rgba(255,93,93,0.28)' : (isMed ? 'rgba(255,182,54,0.25)' : 'rgba(91,140,255,0.22)');
+  const glowColor   = isHigh ? 'rgba(255,93,93,0.45)' : (isMed ? 'rgba(255,182,54,0.40)' : 'rgba(91,140,255,0.35)');
+  const gradTop     = isHigh ? 'rgba(255,93,93,0.30)' : (isMed ? 'rgba(255,182,54,0.25)' : 'rgba(91,140,255,0.22)');
 
-  // Filled gradient area
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  // 1. Filled gradient area
+  const grad = ctx.createLinearGradient(0, padTop, 0, h - padBottom);
   grad.addColorStop(0, gradTop);
   grad.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.beginPath();
-  ctx.moveTo(xs[0], h);
+  ctx.moveTo(xs[0], h - padBottom);
   ctx.lineTo(xs[0], ys[0]);
-  for (let i = 1; i < n; i++) ctx.lineTo(xs[i], ys[i]);
-  ctx.lineTo(xs[n - 1], h);
+  for (let i = 1; i < n; i++) {
+    const xc = (xs[i] + xs[i - 1]) / 2;
+    ctx.quadraticCurveTo(xs[i - 1], ys[i - 1], xc, (ys[i - 1] + ys[i]) / 2);
+  }
+  ctx.lineTo(xs[n - 1], ys[n - 1]);
+  ctx.lineTo(xs[n - 1], h - padBottom);
   ctx.closePath();
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Stroke line
+  // 2. Stroke line with glow
+  ctx.save();
+  ctx.shadowColor = strokeColor;
+  ctx.shadowBlur = 8;
   ctx.beginPath();
   ctx.moveTo(xs[0], ys[0]);
-  for (let i = 1; i < n; i++) ctx.lineTo(xs[i], ys[i]);
+  for (let i = 1; i < n; i++) {
+    const xc = (xs[i] + xs[i - 1]) / 2;
+    ctx.quadraticCurveTo(xs[i - 1], ys[i - 1], xc, (ys[i - 1] + ys[i]) / 2);
+  }
+  ctx.lineTo(xs[n - 1], ys[n - 1]);
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth   = 2.5;
+  ctx.lineWidth   = 2.4;
   ctx.lineJoin    = 'round';
   ctx.lineCap     = 'round';
   ctx.stroke();
+  ctx.restore();
 
-  // Current-value dot with glow halo
+  // 3. Current-value beacon dot with glow halo
   const lx = xs[n - 1];
   const ly = ys[n - 1];
 
@@ -271,8 +330,15 @@ function updateSparkline(samples) {
 
   ctx.beginPath();
   ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
   ctx.fillStyle = strokeColor;
   ctx.fill();
+
+  ctx.restore();
 }
 
 // ─── Risk gauge ───────────────────────────────────────────────────────────────
@@ -391,8 +457,8 @@ function updateLabState(data) {
 
   // ── Events ────────────────────────────────────────────────────────────────
   if (Array.isArray(data.events)) {
-    // New attack just started — clear the log
-    if (running && !prevRunning) {
+    // New attack just started OR backend events deque was cleared / reset
+    if ((running && !prevRunning) || (data.events.length < lastEventCount)) {
       const log = $id('eventLog');
       if (log) {
         log.innerHTML = '<div class="empty-state" style="padding:16px 0;">Waiting for events…</div>';
@@ -457,9 +523,20 @@ function bindButtons() {
       requestedDuration = duration;
 
       runBtn.disabled = true;
+
+      // Provide immediate visual feedback in the timeline
+      const log = $id('eventLog');
+      if (log) {
+        log.innerHTML = '<div class="empty-state" style="padding:16px 0;">Starting attack simulation…</div>';
+      }
+      lastEventCount = 0;
+
       try {
-        await API.runAttack(type, duration, intensity);
+        const res = await API.runAttack(type, duration, intensity);
         if (stopBtn) stopBtn.disabled = false;
+        if (res && res.state) {
+          updateLabState(res.state);
+        }
       } catch (e) {
         // Re-enable the button so the user can try again
         runBtn.disabled = false;

@@ -78,16 +78,22 @@ export function initScene(canvas, opts = {}) {
   let bloomPass = null;
 
   if (bloom) {
-    composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    try {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
 
-    bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
-      bloomStrength,
-      bloomRadius,
-      bloomThreshold
-    );
-    composer.addPass(bloomPass);
+      bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        bloomStrength,
+        bloomRadius,
+        bloomThreshold
+      );
+      composer.addPass(bloomPass);
+    } catch (err) {
+      console.warn('[SceneCore] Post-processing initialization failed, falling back to standard renderer:', err);
+      composer = null;
+      bloomPass = null;
+    }
   }
 
   // ── Mouse parallax ───────────────────────────────────────────────────────
@@ -144,7 +150,13 @@ export function initScene(canvas, opts = {}) {
       if (callback) callback(elapsed, delta);
 
       if (composer) {
-        composer.render();
+        try {
+          composer.render();
+        } catch (renderErr) {
+          console.warn('[SceneCore] Composer render error, falling back to renderer.render:', renderErr);
+          composer = null;
+          renderer.render(scene, camera);
+        }
       } else {
         renderer.render(scene, camera);
       }

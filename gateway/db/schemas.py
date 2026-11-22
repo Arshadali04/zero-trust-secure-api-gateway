@@ -106,11 +106,14 @@ class ResetPasswordRequest(BaseModel):
         return _validate_password_strength(v)
 
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: int
-    is_active: bool
-    role: str
-    created_at: datetime
+    email: str
+    username: str
+    full_name: str | None = None
+    is_active: bool = True
+    role: str = "user"
+    created_at: datetime | None = None
     last_login: datetime | None = None
     last_login_ip: str | None = None
     risk_score: float | None = None

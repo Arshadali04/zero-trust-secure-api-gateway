@@ -51,8 +51,25 @@ window.API = {
 
   // ── Core request ─────────────────────────────────────────────────────────
 
-  async request(method, endpoint, body, _isRetry) {
-    if (body === undefined) body = null;
+  /**
+   * Make an HTTP request.
+   *
+   * Overloaded:
+   *   API.request('GET', '/path')         — explicit method
+   *   API.request('/path')                — shorthand GET (single string arg)
+   */
+  async request(methodOrUrl, endpoint, body, _isRetry) {
+    var method, actualEndpoint;
+    if (endpoint === undefined || typeof endpoint !== 'string') {
+      // Single-argument shorthand: request('/path') → GET /path
+      method = 'GET';
+      actualEndpoint = methodOrUrl;
+      body = null;
+    } else {
+      method = methodOrUrl;
+      actualEndpoint = endpoint;
+      if (body === undefined) body = null;
+    }
 
     var options = {
       method: method,
@@ -72,7 +89,7 @@ window.API = {
 
     var response;
     try {
-      response = await fetch(this._base + endpoint, options);
+      response = await fetch(this._base + actualEndpoint, options);
     } catch (networkErr) {
       throw {
         status: 0,
@@ -119,7 +136,7 @@ window.API = {
       if (response.status === 401 && !_isRetry) {
         var refreshed = await this._tryRefresh(token);
         if (refreshed) {
-          return this.request(method, endpoint, body, true);
+          return this.request(method, actualEndpoint, body, true);
         }
       }
 
@@ -322,8 +339,8 @@ window.API = {
   getAdminUsers: (skip, limit) => {
     var qs = [];
     if (skip !== undefined) qs.push("skip=" + encodeURIComponent(skip));
-    if (limit !== undefined) qs.push("limit=" + encodeURIComponent(limit));
-    var query = qs.length ? "?" + qs.join("&") : "";
+    qs.push("limit=" + encodeURIComponent(limit !== undefined ? limit : 200));
+    var query = "?" + qs.join("&");
     return API.request("GET", "/admin/users" + query);
   },
 
@@ -353,7 +370,24 @@ window.API = {
 
   // ── Health ────────────────────────────────────────────────────────────────
 
-  getHealth: () => API.request("GET", "/health"),
+  getHealth: () => API.request('GET', '/health'),
+
+  // ── Analytics (admin) ─────────────────────────────────────────────────────
+
+  getAnalyticsSummary: () =>
+    API.request('GET', '/admin/analytics/summary'),
+
+  getThreatTimeline: (hours) =>
+    API.request('GET', '/admin/analytics/threat-timeline?hours=' + (hours || 24)),
+
+  getThreatBreakdown: (hours) =>
+    API.request('GET', '/admin/analytics/threat-breakdown?hours=' + (hours || 24)),
+
+  getUserRiskDist: () =>
+    API.request('GET', '/admin/analytics/user-risk-dist'),
+
+  getTopIPs: (limit, hours) =>
+    API.request('GET', '/admin/analytics/top-ips?limit=' + (limit || 15) + '&hours=' + (hours || 24)),
 
   // Audit 2026-08-22 — five helpers removed here as dead code:
   //   updateMe      → PATCH  /auth/me

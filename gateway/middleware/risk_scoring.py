@@ -108,6 +108,7 @@ _EXEMPT_PREFIXES = (
     "/health", "/docs", "/redoc", "/openapi", "/frontend", "/favicon",
     "/metrics",
     "/auth/oauth", "/auth/callback",  # OAuth login + callback must never be risk-blocked
+    "/events",                         # SSE stream — long-lived GET, not an attack vector
 )
 
 
@@ -319,7 +320,7 @@ async def _elevate_authenticated_account_risk(
             # strongest available signal contributed nothing.
             new_risk = await elevate_account_risk(
                 session, user.id, amount, ip=ip,
-                bypass_cooldown=(action == "waf_block"),
+                bypass_cooldown=(action in ("waf_block", "block")),
             )
             logger.warning(
                 "RiskScore policy elevate | user=%s ip=%s path=%s action=%s req_score=%.3f account_risk=%.2f",

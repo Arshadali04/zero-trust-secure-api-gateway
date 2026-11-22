@@ -94,7 +94,23 @@ async def change_password(
     await revoke_all_user_tokens(db, current_user.id)
     await db.commit()
 
+    try:
+        import asyncio
+        from gateway.core.email import send_password_changed_email
+        asyncio.create_task(send_password_changed_email(current_user.email))
+    except Exception as exc:
+        logger.warning("Could not dispatch password changed notification: %s", exc)
+
     return {"message": "Password changed successfully."}
+
+
+@router.get("/admin/email/outbox")
+async def get_email_outbox(
+    _admin: User = Depends(require_admin_user),
+):
+    """Admin-only: Return recent dispatched emails from in-memory outbox."""
+    from gateway.core.email import get_outbox
+    return {"outbox": get_outbox()}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,7 +120,7 @@ async def change_password(
 @router.get("/admin/users", response_model=list[UserResponse])
 async def list_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(200, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(require_admin_user),
 ):

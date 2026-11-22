@@ -60,23 +60,44 @@ async def run_attack(
     if lab.running:
         raise HTTPException(status_code=409, detail="An attack is already running. Stop it first.")
 
-    # Mint a short-lived token from the caller identity so simulation traffic is
-    # attributable and account-risk policy (step-up/freeze) can be demonstrated.
-    #
-    # mfa_verified is deliberately NOT set: this token previously claimed
-    # mfa_verified=True, which meant a 5-minute window existed in which a token
-    # that satisfies the MFA gate and the step-up gate outlived the caller's own
-    # logout. The simulation only needs to be *authenticated*, not MFA-elevated.
-    from datetime import timedelta
+    # Non-flood attacks (SQLi, XSS, Path Traversal, Brute Force) represent
+    # external untrusted traffic and do not carry an authenticated user JWT.
+    # For flood attacks (which test behavioral rate limiting on authenticated APIs),
+    # use a dedicated simulation user identity so the logged-in operator's own
+    # session is never frozen or invalidated by the simulation.
+    jwt = None
+    if payload.attack_type == "flood":
+        from datetime import timedelta
+        from sqlalchemy import select
+        from gateway.core.security import SecurityManager
+        from gateway.db.database import AsyncSessionLocal
+        from gateway.db.models import User
 
-    from gateway.core.security import SecurityManager
+        sim_email = "sim_attacker@gateway.local"
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(User).where(User.email == sim_email))
+            sim_user = result.scalar_one_or_none()
+            if not sim_user:
+                sim_user = User(
+                    email=sim_email,
+                    username="sim_attacker",
+                    hashed_password=SecurityManager.hash_password("SimBotPass123!"),
+                    role="user",
+                    is_active=True,
+                    risk_score=0.1,
+                    token_version=1,
+                )
+                session.add(sim_user)
+                await session.commit()
+                await session.refresh(sim_user)
 
-    jwt = SecurityManager.create_user_token(
-        _user.email,
-        _user.token_version or 1,
-        mfa_verified=True,
-        expires_delta=timedelta(minutes=min(5, max(1, (payload.duration // 60) + 1))),
-    )
+            jwt = SecurityManager.create_user_token(
+                sim_user.email,
+                sim_user.token_version or 1,
+                mfa_verified=True,
+                expires_delta=timedelta(minutes=min(10, max(2, (payload.duration // 60) + 2))),
+            )
+
     lab.start(payload.attack_type, payload.duration, payload.intensity, jwt)
     return {
         "message": f"Started {ATTACK_LABELS[payload.attack_type]} attack.",

@@ -48,7 +48,7 @@ def setup_telemetry(app):
             exporter = ConsoleSpanExporter()
         else:
             try:
-                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore[import-untyped,import-not-found]
                 exporter = OTLPSpanExporter()
             except ImportError:
                 exporter = ConsoleSpanExporter()

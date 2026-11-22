@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Dashboard — Zero Trust Gateway</title>
+  <meta name="description" content="Zero Trust API Gateway Security Operations Center — real-time threat monitoring, risk scoring, and gateway health dashboard.">
+  <title>Security Console — Zero Trust Gateway</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -13,7 +14,17 @@
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/scene.css">
   <link rel="stylesheet" href="css/components.css">
-  <!-- Inline auth guard: redirect to login if no valid JWT -->
+
+  <!-- Import map for Three.js bare module resolution -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <!-- Inline auth guard -->
   <script>
     (function () {
       try {
@@ -33,8 +44,292 @@
       }
     })();
   </script>
+
   <style>
-    /* ── Dashboard-specific panel-sm ──────────────────────────── */
+    /* ── Dashboard v2 — SOC Layout ──────────────────────────────────────── */
+
+    /* Gradient background radials */
+    body {
+      background-image:
+        radial-gradient(ellipse 900px 600px at 10% 5%, rgba(91, 140, 255, 0.06), transparent 65%),
+        radial-gradient(ellipse 600px 500px at 90% 80%, rgba(255, 93, 93, 0.04), transparent 55%),
+        radial-gradient(ellipse 500px 400px at 50% 50%, rgba(45, 212, 160, 0.02), transparent 60%);
+    }
+
+    /* ── KPI Grid — 4 cols desktop, 2 mobile ─────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+    /* ── KPI Card ─────────────────────────────────── */
+    .kpi-card {
+      background: var(--glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      transition: border-color 0.25s, background 0.25s, transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--kpi-accent, var(--accent));
+      opacity: 0.6;
+    }
+
+    .kpi-card:hover {
+      border-color: rgba(91, 140, 255, 0.25);
+      background: var(--glass-hover);
+      transform: translateY(-2px);
+    }
+
+    .kpi-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--dim);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kpi-value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      font-family: var(--mono);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .kpi-sub {
+      font-size: 0.72rem;
+      color: var(--dim);
+      font-family: var(--mono);
+      margin-top: 4px;
+    }
+
+    .kpi-trend {
+      font-size: 0.7rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .kpi-trend.up   { color: var(--alert); }
+    .kpi-trend.down { color: var(--success); }
+    .kpi-trend.flat { color: var(--dim); }
+
+    /* ── Sparkline canvas inside KPI card ──────────── */
+    .kpi-sparkline {
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 90px; height: 36px;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
+    /* ── Risk Gauge (large card) ────────────────────── */
+    .risk-gauge-wrap { margin-top: 8px; }
+
+    .risk-bar-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .risk-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s cubic-bezier(.4,0,.2,1), background 0.4s;
+    }
+
+    .risk-low  { background: linear-gradient(90deg, #2dd4a0, #00e5b0); }
+    .risk-med  { background: linear-gradient(90deg, #ffb636, #ffd000); }
+    .risk-high { background: linear-gradient(90deg, #ff5d5d, #ff3030); box-shadow: 0 0 8px rgba(255,93,93,0.4); }
+
+    /* ── Live Feed Panel ─────────────────────────────── */
+    .threat-feed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .threat-feed-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--bg3);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      font-size: 0.78rem;
+      animation: feedSlideIn 0.35s ease-out;
+      transition: background 0.2s;
+    }
+
+    .threat-feed-item:hover { background: var(--glass); }
+
+    @keyframes feedSlideIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .threat-type-badge {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    /* Threat type colors */
+    .tt-sql_injection     { background: rgba(255,93,93,0.15);   color: #ff5d5d; border: 1px solid rgba(255,93,93,0.3); }
+    .tt-xss               { background: rgba(255,182,54,0.15);  color: #ffb636; border: 1px solid rgba(255,182,54,0.3); }
+    .tt-path_traversal    { background: rgba(255,140,66,0.15);  color: #ff8c42; border: 1px solid rgba(255,140,66,0.3); }
+    .tt-command_injection { background: rgba(224,64,251,0.15);  color: #e040fb; border: 1px solid rgba(224,64,251,0.3); }
+    .tt-ssrf              { background: rgba(255,107,157,0.15); color: #ff6b9d; border: 1px solid rgba(255,107,157,0.3); }
+    .tt-xxe               { background: rgba(255,64,129,0.15);  color: #ff4081; border: 1px solid rgba(255,64,129,0.3); }
+    .tt-ldap_injection    { background: rgba(124,77,255,0.15);  color: #7c4dff; border: 1px solid rgba(124,77,255,0.3); }
+    .tt-prototype_pollution { background: rgba(64,196,255,0.15); color: #40c4ff; border: 1px solid rgba(64,196,255,0.3); }
+    .tt-failed_login      { background: rgba(91,140,255,0.15);  color: #5b8cff; border: 1px solid rgba(91,140,255,0.3); }
+    .tt-ml_anomaly        { background: rgba(45,212,160,0.15);  color: #2dd4a0; border: 1px solid rgba(45,212,160,0.3); }
+    .tt-high_risk_request { background: rgba(255,112,67,0.15);  color: #ff7043; border: 1px solid rgba(255,112,67,0.3); }
+    .tt-default           { background: rgba(136,153,170,0.15); color: #8899aa; border: 1px solid rgba(136,153,170,0.3); }
+
+    .feed-ip   { font-family: var(--mono); color: var(--muted); font-size: 0.75rem; }
+    .feed-ep   { color: var(--dim); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .feed-risk { font-family: var(--mono); font-size: 0.7rem; font-weight: 700; }
+    .feed-time { font-family: var(--mono); font-size: 0.66rem; color: var(--dim); white-space: nowrap; }
+
+    /* ── Live Pulse Dot ──────────────────────────────── */
+    .live-dot {
+      width: 8px; height: 8px;
+      background: var(--alert);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 0 0 rgba(255,93,93,0.6);
+      animation: livePulse 1.8s ease-out infinite;
+    }
+
+    @keyframes livePulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255,93,93,0.6); }
+      70%  { box-shadow: 0 0 0 6px rgba(255,93,93,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,93,93,0); }
+    }
+
+    /* ── Donut Chart ─────────────────────────────────── */
+    .donut-wrap {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .donut-canvas {
+      flex-shrink: 0;
+      width: 120px;
+      height: 120px;
+    }
+
+    .donut-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .legend-label {
+      color: var(--muted);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .legend-count {
+      font-family: var(--mono);
+      color: var(--text);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    /* ── Two-column layout section ───────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── Top IPs table ───────────────────────────────── */
+    .ip-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+
+    .ip-table th {
+      text-align: left;
+      color: var(--dim);
+      font-weight: 600;
+      font-size: 0.67rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .ip-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      vertical-align: middle;
+    }
+
+    .ip-table tr:last-child td { border-bottom: none; }
+
+    .ip-table tr:hover td { background: var(--glass); }
+
+    .ip-mono { font-family: var(--mono); font-size: 0.73rem; }
+
+    /* ── Panel header ─────────────────────────────────── */
     .panel-sm {
       background: var(--glass);
       backdrop-filter: blur(12px);
@@ -44,14 +339,65 @@
       transition: border-color 0.2s, background 0.2s;
     }
 
-    .panel-sm:hover {
-      background: var(--glass-hover);
+    .panel-sm:hover { background: var(--glass-hover); }
+
+    /* ── Risk tier colors ─────────────────────────────── */
+    .risk-tier-low      { color: var(--success); }
+    .risk-tier-med      { color: var(--warning); }
+    .risk-tier-high     { color: var(--alert); }
+    .risk-tier-critical { color: var(--alert); }
+
+    /* ── Traffic Verdict Inspection Bar ─────────────── */
+    #proxyInspectionBar {
+      display: none;
+      margin-bottom: 12px;
+      padding: 12px 16px;
+      background: var(--bg3);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+    }
+
+    .inspection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    /* ── Architecture node grid ──────────────────────── */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    /* ── Security architecture status dot ─────────── */
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .dot-ok    { background: var(--success); box-shadow: 0 0 6px rgba(45,212,160,0.5); }
+    .dot-warn  { background: var(--warning); box-shadow: 0 0 6px rgba(255,182,54,0.5); }
+    .dot-alert { background: var(--alert);   box-shadow: 0 0 6px rgba(255,93,93,0.5); }
+
+    /* ── Feed empty state ────────────────────────────── */
+    .feed-empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--dim);
+      font-size: 0.82rem;
+    }
+
+    .feed-empty-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      opacity: 0.5;
     }
   </style>
 </head>
 
 <body>
-
   <!-- WebGL background canvas -->
   <canvas id="bg-canvas" class="scene-canvas"></canvas>
 
@@ -61,8 +407,7 @@
     <nav class="topbar">
       <div class="topbar-inner container">
         <a href="dashboard.html" class="topbar-brand">
-          <span
-            style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
+          <span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
               stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -91,187 +436,302 @@
       <div class="container">
 
         <!-- Page header -->
-        <div class="flex-between mb-16">
+        <div class="flex-between mb-16" style="margin-bottom:20px">
           <div>
-            <h2 style="font-size:1.3rem;font-weight:700">Security Console</h2>
-            <p id="sessionInfo" class="text-dim" style="font-size:0.8rem;font-family:var(--mono);margin-top:4px"></p>
+            <h1 style="font-size:1.3rem;font-weight:700;margin:0">Security Operations Console</h1>
+            <p id="sessionInfo" class="text-dim" style="font-size:0.78rem;font-family:var(--mono);margin-top:3px"></p>
           </div>
-          <div class="flex-row">
-            <span id="healthBadge" class="badge badge-dim">checking...</span>
+          <div class="flex-row" style="gap:10px">
+            <span id="healthBadge" class="badge badge-dim" style="font-size:0.72rem">checking...</span>
+            <span class="live-dot" title="Live threat feed active"></span>
           </div>
         </div>
 
-        <!-- Metrics row -->
-        <div class="metric-grid mb-16" id="metricsGrid">
+        <!-- ── KPI Grid — 8 cards ── -->
+        <div class="kpi-grid" id="kpiGrid">
 
-          <!-- Risk score metric -->
-          <div class="metric-card panel">
-            <div class="flex-between">
-              <div class="metric-label">Account Risk Score</div>
-              <span id="riskTierBadge" class="badge badge-ok"
-                style="font-size:0.7rem;text-transform:uppercase">LOW</span>
+          <!-- 1. Account Risk Score -->
+          <div class="kpi-card metric-card" style="--kpi-accent: var(--accent); grid-column: span 2;">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Account Risk Score
+              <span id="riskTierBadge" class="badge badge-ok" style="font-size:0.65rem;text-transform:uppercase;margin-left:auto">LOW</span>
             </div>
-            <div class="metric-value" id="riskValue" style="color:var(--success)">--</div>
+            <div class="kpi-value" id="riskValue" style="color:var(--success)">--</div>
             <div class="risk-gauge-wrap">
               <div class="risk-bar-track">
                 <div class="risk-bar-fill risk-low" id="riskFill" style="width:0%"></div>
               </div>
             </div>
-            <div class="flex-between mt-8" style="font-size:0.75rem;font-family:var(--mono)">
-              <span class="text-dim">Policy Action:</span>
+            <div class="flex-between mt-8" style="font-size:0.72rem;font-family:var(--mono)">
+              <span class="text-dim">Policy:</span>
               <span id="riskPolicyText" style="color:var(--success)">Standard (Allow)</span>
             </div>
-            <div class="flex-between" style="font-size:0.72rem;font-family:var(--mono);margin-top:3px">
-              <span class="text-dim">4h Self-Healing:</span>
-              <span id="riskDecayText" class="text-dim">Active (Decays to 0)</span>
+            <div class="flex-between" style="font-size:0.69rem;font-family:var(--mono);margin-top:2px">
+              <span class="text-dim">4h Decay:</span>
+              <span id="riskDecayText" class="text-dim">Active</span>
             </div>
+            <!-- Sparkline canvas (last 20 risk readings) -->
+            <canvas id="riskSparkline" class="kpi-sparkline" width="90" height="36" title="Risk score history (last ~80s)"></canvas>
           </div>
 
-          <!-- Account status -->
-          <div class="metric-card panel">
-            <div class="metric-label">Account Status</div>
-            <div id="accountStatus" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
-              <div class="flex-row">
+          <!-- 2. Threats (24h) -->
+          <div class="kpi-card metric-card" style="--kpi-accent: var(--alert)">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Threats (24h)
+            </div>
+            <div class="kpi-value" id="kpiThreats" style="color:var(--alert)">--</div>
+            <div class="kpi-sub" id="kpiWafBlocks">WAF blocks: --</div>
+          </div>
+
+          <!-- 3. Blocked IPs -->
+          <div class="kpi-card metric-card" style="--kpi-accent: #e040fb">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              Blocked IPs
+            </div>
+            <div class="kpi-value" id="kpiBlockedIPs" style="color:#e040fb">--</div>
+            <div class="kpi-sub">Active blocklist entries</div>
+          </div>
+
+          <!-- 4. Active Users -->
+          <div class="kpi-card metric-card" style="--kpi-accent: var(--success)">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              Active Users
+            </div>
+            <div class="kpi-value" id="kpiActiveUsers" style="color:var(--success)">--</div>
+            <div class="kpi-sub" id="kpiHighRiskUsers">High-risk: --</div>
+          </div>
+
+          <!-- 5. Account Status -->
+          <div class="kpi-card metric-card" style="--kpi-accent: var(--warning)">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Account Status
+            </div>
+            <div id="accountStatus" style="margin-top:6px;display:flex;flex-direction:column;gap:5px">
+              <div class="flex-row" style="gap:6px">
                 <span class="dot dot-ok"></span>
-                <span id="accountActive" style="font-size:0.875rem">Active</span>
+                <span style="font-size:0.8rem">Active</span>
               </div>
-              <div class="flex-row">
+              <div class="flex-row" style="gap:6px">
                 <span id="mfaStatusDot" class="dot dot-warn"></span>
-                <span id="mfaStatusText" style="font-size:0.875rem">MFA: checking...</span>
+                <span id="mfaStatusText" style="font-size:0.8rem">MFA: checking...</span>
               </div>
-              <div class="flex-row" id="stepUpRow" style="display:none">
+              <div class="flex-row" id="stepUpRow" style="display:none;gap:6px">
                 <span class="dot dot-alert"></span>
-                <span style="font-size:0.875rem;color:var(--alert)">Step-up required</span>
+                <span style="font-size:0.8rem;color:var(--alert)">Step-up required</span>
               </div>
-              <div class="flex-row" id="frozenRow" style="display:none">
+              <div class="flex-row" id="frozenRow" style="display:none;gap:6px">
                 <span class="dot dot-alert"></span>
-                <span style="font-size:0.875rem;color:var(--alert)">Account frozen</span>
+                <span style="font-size:0.8rem;color:var(--alert)">Account frozen</span>
               </div>
             </div>
           </div>
 
-          <!-- Session -->
-          <div class="metric-card panel">
-            <div class="metric-label">Session</div>
-            <div id="sessionUser" class="metric-value" style="font-size:1rem;word-break:break-all">--</div>
-            <div class="form-hint mt-8" id="sessionExpiry"></div>
+          <!-- 6. Session -->
+          <div class="kpi-card metric-card" style="--kpi-accent: var(--accent)">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Session
+            </div>
+            <div id="sessionUser" class="kpi-value" style="font-size:0.85rem;word-break:break-all;color:var(--text)">--</div>
+            <div class="kpi-sub" id="sessionExpiry" style="font-family:var(--mono)"></div>
           </div>
 
-          <!-- Gateway Health -->
-          <div class="metric-card panel">
-            <div class="metric-label">Gateway Health</div>
-            <div class="metric-value" id="healthStatus" style="color:var(--dim)">--</div>
-            <div class="form-hint mt-8" id="healthDetail"></div>
+          <!-- 7. Gateway Health -->
+          <div class="kpi-card metric-card" style="--kpi-accent: var(--success)">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Gateway Health
+            </div>
+            <div class="kpi-value" id="healthStatus" style="color:var(--dim)">--</div>
+            <div class="kpi-sub" id="healthDetail">checking systems...</div>
           </div>
 
-        </div><!-- .metric-grid -->
+          <!-- 8. Avg Risk Score -->
+          <div class="kpi-card metric-card" style="--kpi-accent: #ff7043">
+            <div class="kpi-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Platform Risk
+            </div>
+            <div class="kpi-value" id="kpiAvgRisk" style="color:#ff7043">--</div>
+            <div class="kpi-sub" id="kpiTopThreat">Top threat: --</div>
+          </div>
 
-        <!-- Live Proxy & Risk Defense Test -->
+        </div><!-- .kpi-grid -->
+
+        <!-- ── Live Proxy & Defense Test ── -->
         <div class="panel mb-16">
           <div class="panel-header">
             <div>
               <h3 style="font-size:0.95rem;font-weight:700">Live Proxy & Zero Trust Defense Test</h3>
-              <p class="text-dim" style="font-size:0.75rem;margin-top:2px">Test legitimate traffic or trigger real-time
-                threat vectors to watch Gateway risk scoring and WAF defense in action.</p>
+              <p class="text-dim" style="font-size:0.75rem;margin-top:2px">Test legitimate traffic or trigger real-time threat vectors. Watch the Gateway risk pipeline evaluate every request in real time.</p>
             </div>
             <div class="flex-row" style="flex-wrap:wrap;gap:8px">
               <select class="form-select btn-sm" id="proxyEndpointSel"
-                style="font-family:var(--mono);font-size:0.8rem;width:auto;max-width:320px">
+                style="font-family:var(--mono);font-size:0.78rem;width:auto;max-width:320px">
                 <optgroup label="✅ Legitimate Traffic (Normal Risk)">
                   <option value="data/hello">GET /api/v1/data/hello (Microservice: data - 8001)</option>
                   <option value="data/status">GET /api/v1/data/status (Microservice: data - 8001)</option>
                   <option value="demo/hello">GET /api/v1/demo/hello (Microservice: demo - 8002)</option>
                   <option value="demo/test">GET /api/v1/demo/test (Microservice: demo - 8002)</option>
                 </optgroup>
-                <optgroup label="⚠️ Threat Simulation (Triggers Risk & WAF)">
-                  <option value="data/hello?q=1'%20OR%20'1'='1">SQL Injection Vector (WAF Block 403 & Elevate Risk)
-                  </option>
-                  <option value="data/hello?q=<script>alert('xss')</script>">XSS Script Vector (WAF Block 403 & Elevate
-                    Risk)</option>
-                  <option value="data/../../etc/passwd">Path Traversal Vector (WAF Block 403 & Elevate Risk)</option>
+                <optgroup label="⚠️ Threat Simulation (WAF + Risk Engine)">
+                  <option value="data/hello?q=1'%20OR%20'1'='1">SQL Injection (WAF Block 403)</option>
+                  <option value="data/hello?q=<script>alert('xss')</script>">XSS Script Vector (WAF Block)</option>
+                  <option value="data/../../etc/passwd">Path Traversal (WAF Block)</option>
+                  <option value="data/hello?url=http://127.0.0.1/admin">SSRF Internal Target (WAF Block)</option>
+                  <option value="data/hello?doc=<!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]>">XXE Payload (WAF Block)</option>
                 </optgroup>
               </select>
               <button class="btn btn-primary btn-sm" id="proxyBtn">Call API</button>
               <button class="btn btn-dim btn-sm text-alert" id="burstRiskBtn"
-                title="Send 45 rapid authenticated requests to test velocity engine">⚡ Test Traffic Burst (45
-                Reqs)</button>
+                title="Send 45 rapid authenticated requests to test velocity engine">⚡ Traffic Burst (45 Reqs)</button>
             </div>
           </div>
 
-          <!-- Real-Time Gateway Security Verdict Inspection Bar -->
-          <div id="proxyInspectionBar"
-            style="display:none;margin-bottom:12px;padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
-            <div
-              style="font-size:0.72rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">
+          <!-- Zero Trust Verdict Bar -->
+          <div id="proxyInspectionBar">
+            <div style="font-size:0.69rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">
               Gateway Zero Trust Verdict (Evaluated at Edge Middleware)
             </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+            <div class="inspection-grid">
               <div>
-                <div style="font-size:0.7rem;color:var(--dim)">Request Risk Score</div>
-                <div id="inspectScore"
-                  style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--success)">--</div>
+                <div style="font-size:0.68rem;color:var(--dim)">Request Risk Score</div>
+                <div id="inspectScore" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--success)">--</div>
               </div>
               <div>
-                <div style="font-size:0.7rem;color:var(--dim)">Gateway Action</div>
-                <div id="inspectAction"
-                  style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--success)">ALLOW</div>
+                <div style="font-size:0.68rem;color:var(--dim)">Gateway Action</div>
+                <div id="inspectAction" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--success)">ALLOW</div>
               </div>
               <div>
-                <div style="font-size:0.7rem;color:var(--dim)">WAF Inspection</div>
-                <div id="inspectWaf"
-                  style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--success)">CLEAN</div>
+                <div style="font-size:0.68rem;color:var(--dim)">WAF Inspection</div>
+                <div id="inspectWaf" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--success)">CLEAN</div>
               </div>
               <div>
-                <div style="font-size:0.7rem;color:var(--dim)">Rate Limit Window</div>
-                <div id="inspectRate" style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--muted)">
-                  -- remaining</div>
+                <div style="font-size:0.68rem;color:var(--dim)">Rate Limit Window</div>
+                <div id="inspectRate" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--muted)">-- remaining</div>
               </div>
             </div>
           </div>
 
           <div id="proxyResult"
-            style="font-family:var(--mono);font-size:0.8rem;color:var(--muted);white-space:pre-wrap;min-height:40px;padding:10px 12px;background:var(--bg3);border-radius:6px;overflow-x:auto;line-height:1.6">
-            Select an endpoint and click "Call API" to test the reverse proxy.
-          </div>
+            style="font-family:var(--mono);font-size:0.78rem;color:var(--muted);white-space:pre-wrap;min-height:40px;padding:10px 12px;background:var(--bg3);border-radius:6px;overflow-x:auto;line-height:1.6;transition:color 0.3s">
+            Select an endpoint and click "Call API" to test the reverse proxy.</div>
         </div>
 
-        <!-- Security Architecture -->
+        <!-- ── Two-column: Live Threat Feed + Threat Breakdown ── -->
+        <div class="two-col">
+
+          <!-- Live Threat Feed -->
+          <div class="panel" style="display:flex;flex-direction:column">
+            <div class="panel-header" style="flex-shrink:0">
+              <div>
+                <h3 style="font-size:0.95rem;font-weight:700">Live Threat Intelligence Feed</h3>
+                <p class="text-dim" style="font-size:0.72rem;margin-top:2px">Real-time security events from all gateway middleware layers</p>
+              </div>
+              <div class="flex-row" style="gap:8px">
+                <span class="live-dot"></span>
+                <span class="badge badge-alert" style="font-size:0.65rem">LIVE</span>
+              </div>
+            </div>
+            <div class="threat-feed-list" id="threatFeedList">
+              <div class="feed-empty" id="feedEmpty">
+                <div class="feed-empty-icon">🛡️</div>
+                <div>Connecting to threat feed...</div>
+              </div>
+            </div>
+            <div style="padding:8px 16px 12px;font-size:0.68rem;color:var(--dim);font-family:var(--mono);border-top:1px solid var(--glass-border);margin-top:8px;flex-shrink:0">
+              <span id="feedStatus">Polling every 1.5s</span>
+            </div>
+          </div>
+
+          <!-- Threat Breakdown Donut -->
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <h3 style="font-size:0.95rem;font-weight:700">Threat Breakdown</h3>
+                <p class="text-dim" style="font-size:0.72rem;margin-top:2px">Last 24 hours by attack type</p>
+              </div>
+              <span class="badge badge-info" style="font-size:0.65rem">24h</span>
+            </div>
+            <div class="donut-wrap" id="donutWrap">
+              <canvas class="donut-canvas" id="donutCanvas" width="120" height="120"></canvas>
+              <div class="donut-legend" id="donutLegend">
+                <div class="text-dim" style="font-size:0.78rem">Loading chart...</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--glass-border)">
+              <div style="font-size:0.68rem;color:var(--dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;font-weight:600">User Risk Distribution</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+                <div>
+                  <div style="font-size:0.65rem;color:var(--dim)">LOW</div>
+                  <div id="distLow" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--success)">--</div>
+                </div>
+                <div>
+                  <div style="font-size:0.65rem;color:var(--dim)">MEDIUM</div>
+                  <div id="distMed" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--warning)">--</div>
+                </div>
+                <div>
+                  <div style="font-size:0.65rem;color:var(--dim)">HIGH</div>
+                  <div id="distHigh" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--alert)">--</div>
+                </div>
+                <div>
+                  <div style="font-size:0.65rem;color:var(--dim)">CRITICAL</div>
+                  <div id="distCrit" style="font-family:var(--mono);font-size:0.95rem;font-weight:700;color:var(--alert)">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- .two-col -->
+
+        <!-- ── Security Architecture ── -->
         <div class="panel">
           <div class="panel-header">
             <h3 style="font-size:0.95rem;font-weight:700">Security Architecture</h3>
             <span class="badge badge-info">Live</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+          <div class="arch-grid">
 
             <div class="panel-sm" style="border-color:rgba(91,140,255,0.2);padding:12px;text-align:center">
               <div class="dot dot-ok" style="margin:0 auto 8px"></div>
               <div style="font-size:0.8rem;font-weight:600">Identity Core</div>
-              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">You (JWT)</div>
+              <div class="text-dim" style="font-size:0.68rem;margin-top:2px">JWT + OAuth2</div>
             </div>
 
             <div class="panel-sm" style="border-color:rgba(255,182,54,0.2);padding:12px;text-align:center">
               <div class="dot dot-warn" style="margin:0 auto 8px"></div>
               <div style="font-size:0.8rem;font-weight:600">Risk Engine</div>
-              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">ML scoring</div>
+              <div class="text-dim" style="font-size:0.68rem;margin-top:2px">ML + Adaptive</div>
             </div>
 
             <div class="panel-sm" style="border-color:rgba(255,93,93,0.2);padding:12px;text-align:center">
               <div class="dot dot-alert" style="margin:0 auto 8px"></div>
               <div style="font-size:0.8rem;font-weight:600">WAF</div>
-              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">SQLi / XSS / path</div>
+              <div class="text-dim" style="font-size:0.68rem;margin-top:2px">8 threat classes</div>
+            </div>
+
+            <div class="panel-sm" style="border-color:rgba(224,64,251,0.2);padding:12px;text-align:center">
+              <div class="dot" style="margin:0 auto 8px;background:#e040fb;box-shadow:0 0 6px rgba(224,64,251,0.5)"></div>
+              <div style="font-size:0.8rem;font-weight:600">TOTP-MFA</div>
+              <div class="text-dim" style="font-size:0.68rem;margin-top:2px">Step-up gates</div>
             </div>
 
             <div class="panel-sm" style="border-color:rgba(45,212,160,0.2);padding:12px;text-align:center">
               <div class="dot dot-ok" style="margin:0 auto 8px"></div>
               <div style="font-size:0.8rem;font-weight:600">Proxy</div>
-              <div class="text-dim" style="font-size:0.7rem;margin-top:2px">Upstream services</div>
+              <div class="text-dim" style="font-size:0.68rem;margin-top:2px">Upstream services</div>
             </div>
 
             <div class="panel-sm" style="border-color:rgba(255,93,93,0.2);padding:12px;text-align:center">
               <a href="attack-lab.html" style="text-decoration:none;color:inherit;display:block">
                 <div class="dot dot-alert" style="margin:0 auto 8px"></div>
                 <div style="font-size:0.8rem;font-weight:600">Attack Lab</div>
-                <div style="font-size:0.7rem;color:var(--accent);margin-top:2px">Open →</div>
+                <div style="font-size:0.68rem;color:var(--accent);margin-top:2px">Open →</div>
               </a>
             </div>
 

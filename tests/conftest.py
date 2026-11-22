@@ -191,6 +191,43 @@ async def _reset_ip_blocker():
     yield
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_account_risk():
+    """Reset the test user's account risk score and freeze after each test.
+
+    WAF-blocked requests elevate the test user's account risk score by ~0.30 per
+    block. After 3 blocks the account hits critical (>= 0.85) and gets frozen for
+    1 hour, causing subsequent auth checks to return 401 even with a valid token.
+    The auth token is session-scoped and doesn't change, but `require_authenticated_user`
+    checks `account_frozen_until` on each request.
+
+    This fixture resets risk, freeze, and step-up state so every test starts from
+    a clean account state regardless of what previous tests triggered through the WAF.
+    """
+    yield
+    try:
+        from sqlalchemy import delete, select
+
+        from gateway.db.database import AsyncSessionLocal
+        from gateway.db.models import AccountFreeze, User
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(User).where(User.email == VALID_USER["email"])
+            )
+            user = result.scalar_one_or_none()
+            if user:
+                await session.execute(
+                    delete(AccountFreeze).where(AccountFreeze.user_id == user.id)
+                )
+                user.risk_score = 0.0
+                user.account_frozen_until = None
+                user.stepup_required = False
+                user.stepup_since = None
+                await session.commit()
+    except Exception:
+        pass  # Best-effort; don't mask test errors with teardown noise
+
+
 # ── Convenience helpers ───────────────────────────────────────────────────────
 
 VALID_USER = {
