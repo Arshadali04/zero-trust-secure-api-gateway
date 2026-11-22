@@ -22,6 +22,8 @@ services:
         generateValue: true
       - key: DATABASE_URL
         value: sqlite+aiosqlite:////var/data/gateway.db
+      - key: GATEWAY_MODEL_DIR
+        value: /var/data/models
       - key: GATEWAY_DEMO
         value: "1"
       - key: ALLOW_UPSTREAM_PRIVATE
